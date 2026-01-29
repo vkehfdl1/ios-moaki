@@ -3,6 +3,7 @@ import SwiftUI
 struct KeyGridView: View {
     let centerKeyWidth: CGFloat
     let keyHeight: CGFloat
+    let totalWidth: CGFloat
     let isSymbolMode: Bool
     let activeKey: (row: Int, column: Int)?
     let previewVowel: Jungseong?
@@ -24,7 +25,7 @@ struct KeyGridView: View {
                         let content = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode)
                         let isActive = activeKey?.row == row && activeKey?.column == column
                         let longPressNumber = isSymbolMode ? nil : KeyboardMetrics.longPressNumber(at: row, column: column)
-                        let width = KeyboardMetrics.keyWidth(for: column, row: row, centerKeyWidth: centerKeyWidth)
+                        let width = KeyboardMetrics.keyWidth(for: column, row: row, centerKeyWidth: centerKeyWidth, totalWidth: totalWidth)
 
                         KeyView(
                             content: content ?? .symbol(""),
@@ -78,6 +79,7 @@ typealias ConsonantGridView = KeyGridView
         KeyGridView(
             centerKeyWidth: 45,
             keyHeight: 50,
+            totalWidth: 350,
             isSymbolMode: false,
             activeKey: (1, 2),
             previewVowel: .ㅏ,
@@ -95,6 +97,7 @@ typealias ConsonantGridView = KeyGridView
         KeyGridView(
             centerKeyWidth: 45,
             keyHeight: 50,
+            totalWidth: 350,
             isSymbolMode: true,
             activeKey: nil,
             previewVowel: nil,

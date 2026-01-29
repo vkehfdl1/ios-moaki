@@ -60,24 +60,27 @@ struct FunctionRowView: View {
         }
     }
 
-    private var availableWidth: CGFloat {
-        totalWidth - spacing * 5  // 5 gaps for 4 buttons + edges
+    private var returnWidth: CGFloat {
+        // Match backspace width: sideWidth + centerKeyWidth + spacing
+        let centerKeyWidth = KeyboardMetrics.centerKeyWidth(for: totalWidth)
+        let sideWidth = centerKeyWidth * KeyboardMetrics.symbolWidthRatio
+        return sideWidth + centerKeyWidth + KeyboardMetrics.keySpacing
+    }
+
+    private var availableWidthWithoutReturn: CGFloat {
+        totalWidth - returnWidth - spacing * 5  // 5 gaps for 4 buttons + edges
     }
 
     private var toggleWidth: CGFloat {
-        availableWidth * 0.22
+        availableWidthWithoutReturn * 0.30
     }
 
     private var commaWidth: CGFloat {
-        availableWidth * 0.10
+        availableWidthWithoutReturn * 0.14
     }
 
     private var spaceWidth: CGFloat {
-        availableWidth * 0.33
-    }
-
-    private var returnWidth: CGFloat {
-        availableWidth * 0.35
+        availableWidthWithoutReturn * 0.56
     }
 }
 

@@ -20,6 +20,9 @@ enum KeyboardMetrics {
     // Width ratio for side symbol keys (relative to center keys)
     static let symbolWidthRatio: CGFloat = 0.35
 
+    // Width ratio for action keys (backspace/return) relative to total width
+    static let actionKeyWidthRatio: CGFloat = 0.20
+
     // Function row
     static let functionRowHeight: CGFloat = 44
 
@@ -27,6 +30,11 @@ enum KeyboardMetrics {
     static let gestureThreshold: CGFloat = 20        // Minimum distance to register direction
     static let directionChangeThreshold: CGFloat = 15 // Distance before direction can change
     static let gestureTimeout: TimeInterval = 0.5    // Max time between direction changes
+
+    // Calculate action key width (backspace/return) based on total width
+    static func actionKeyWidth(for totalWidth: CGFloat) -> CGFloat {
+        return totalWidth * actionKeyWidthRatio
+    }
 
     // Calculate center key width based on available space
     // Row 0-2: side*2 + center*5 = 0.35*2 + 5 = 5.7 units
@@ -43,10 +51,13 @@ enum KeyboardMetrics {
     }
 
     // Get key width for specific column and row
-    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat) -> CGFloat {
+    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat, totalWidth: CGFloat) -> CGFloat {
         let sideWidth = centerKeyWidth * symbolWidthRatio
 
-        // Row 3: backspace (col 5) is expanded to fill remaining space
+        // Row 3: backspace (col 5) fills remaining space to match row 0-2 width
+        // Row 0-2 width: 2*sideWidth + 5*centerKeyWidth + 6*spacing
+        // Row 3 without backspace: sideWidth + 4*centerKeyWidth + 5*spacing
+        // backspaceWidth = sideWidth + centerKeyWidth + spacing
         if row == 3 && column == 5 {
             return sideWidth + centerKeyWidth + keySpacing
         }

@@ -3,6 +3,7 @@ import Combine
 
 struct KeyboardView: View {
     @ObservedObject var viewModel: KeyboardViewModel
+    @ObservedObject var settings = KeyboardSettings.shared
 
     var body: some View {
         GeometryReader { geometry in
@@ -15,6 +16,7 @@ struct KeyboardView: View {
                     KeyGridView(
                         centerKeyWidth: centerKeyWidth,
                         keyHeight: keyHeight,
+                        totalWidth: geometry.size.width,
                         isSymbolMode: viewModel.isSymbolMode,
                         activeKey: viewModel.activeKey,
                         previewVowel: viewModel.previewVowel,
@@ -61,8 +63,8 @@ struct KeyboardView: View {
                 }
                 .padding(KeyboardMetrics.keySpacing)
 
-                // Gesture overlay (only shown in Korean mode)
-                if !viewModel.isSymbolMode {
+                // Gesture overlay (only shown when enabled and in Korean mode)
+                if settings.showGesturePreview && !viewModel.isSymbolMode {
                     GestureOverlayView(
                         directions: viewModel.gestureDirections,
                         startPoint: viewModel.gestureStartPoint,

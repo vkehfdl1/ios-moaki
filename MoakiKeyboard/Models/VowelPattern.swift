@@ -10,14 +10,12 @@ struct VowelPattern {
     }
 
     static let allPatterns: [VowelPattern] = [
-        // Basic vowels
-        VowelPattern(.ㅗ, .up),                           // ↑
-        VowelPattern(.ㅜ, .down),                         // ↓
+        // Basic vowels (왼쪽 대각선만 정규화: ↖→↑, ↙→↓)
+        VowelPattern(.ㅗ, .up),                           // ↑ (↖도 정규화로 처리됨)
+        VowelPattern(.ㅜ, .down),                         // ↓ (↙도 정규화로 처리됨)
         VowelPattern(.ㅏ, .right),                        // →
         VowelPattern(.ㅓ, .left),                         // ←
-        VowelPattern(.ㅜ, .downLeft),                     // ↙ → ㅜ
         VowelPattern(.ㅡ, .downRight),                    // ↘ → ㅡ
-        VowelPattern(.ㅗ, .upLeft),                       // ↖ → ㅗ
         VowelPattern(.ㅣ, .upRight),                      // ↗ → ㅣ
 
         // Y-vowels (triple direction)
@@ -40,8 +38,8 @@ struct VowelPattern {
         VowelPattern(.ㅔ, .left, .right),                 // ←→
         VowelPattern(.ㅖ, .left, .right, .left, .right),  // ←→←→
 
-        // Eu-i
-        VowelPattern(.ㅢ, .downLeft, .upRight),           // ↙↗
+        // Eu-i (정규화 후: ↙↗ → ↓↗)
+        VowelPattern(.ㅢ, .down, .upRight),               // ↙↗ (왼쪽 대각선 정규화됨)
     ]
 
     // Build a trie for efficient pattern matching
