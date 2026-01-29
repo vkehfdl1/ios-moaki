@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		00A43D1B2F2A349E005FF0AB /* MoakiKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 00A43D142F2A349E005FF0AB /* MoakiKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		00A43CF42F2A2F8E005FF0AB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,13 +25,45 @@
 			remoteGlobalIDString = 00A43CE32F2A2F8C005FF0AB;
 			remoteInfo = "ios-moaki";
 		};
+		00A43D192F2A349E005FF0AB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 00A43CDC2F2A2F8C005FF0AB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 00A43D132F2A349E005FF0AB;
+			remoteInfo = MoakiKeyboard;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		00A43D202F2A349E005FF0AB /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				00A43D1B2F2A349E005FF0AB /* MoakiKeyboard.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		00A43CE42F2A2F8C005FF0AB /* ios-moaki.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ios-moaki.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		00A43CF32F2A2F8E005FF0AB /* ios-moakiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ios-moakiTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		00A43CFD2F2A2F8E005FF0AB /* ios-moakiUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ios-moakiUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		00A43D142F2A349E005FF0AB /* MoakiKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MoakiKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		00A43D1C2F2A349E005FF0AB /* Exceptions for "MoakiKeyboard" folder in "MoakiKeyboard" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 00A43D132F2A349E005FF0AB /* MoakiKeyboard */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		00A43CE62F2A2F8C005FF0AB /* ios-moaki */ = {
@@ -43,6 +79,14 @@
 		00A43D002F2A2F8E005FF0AB /* ios-moakiUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "ios-moakiUITests";
+			sourceTree = "<group>";
+		};
+		00A43D152F2A349E005FF0AB /* MoakiKeyboard */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				00A43D1C2F2A349E005FF0AB /* Exceptions for "MoakiKeyboard" folder in "MoakiKeyboard" target */,
+			);
+			path = MoakiKeyboard;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +113,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		00A43D112F2A349E005FF0AB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -78,6 +129,7 @@
 				00A43CE62F2A2F8C005FF0AB /* ios-moaki */,
 				00A43CF62F2A2F8E005FF0AB /* ios-moakiTests */,
 				00A43D002F2A2F8E005FF0AB /* ios-moakiUITests */,
+				00A43D152F2A349E005FF0AB /* MoakiKeyboard */,
 				00A43CE52F2A2F8C005FF0AB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,6 +140,7 @@
 				00A43CE42F2A2F8C005FF0AB /* ios-moaki.app */,
 				00A43CF32F2A2F8E005FF0AB /* ios-moakiTests.xctest */,
 				00A43CFD2F2A2F8E005FF0AB /* ios-moakiUITests.xctest */,
+				00A43D142F2A349E005FF0AB /* MoakiKeyboard.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -102,10 +155,12 @@
 				00A43CE02F2A2F8C005FF0AB /* Sources */,
 				00A43CE12F2A2F8C005FF0AB /* Frameworks */,
 				00A43CE22F2A2F8C005FF0AB /* Resources */,
+				00A43D202F2A349E005FF0AB /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				00A43D1A2F2A349E005FF0AB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				00A43CE62F2A2F8C005FF0AB /* ios-moaki */,
@@ -163,6 +218,28 @@
 			productReference = 00A43CFD2F2A2F8E005FF0AB /* ios-moakiUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		00A43D132F2A349E005FF0AB /* MoakiKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00A43D1D2F2A349E005FF0AB /* Build configuration list for PBXNativeTarget "MoakiKeyboard" */;
+			buildPhases = (
+				00A43D102F2A349E005FF0AB /* Sources */,
+				00A43D112F2A349E005FF0AB /* Frameworks */,
+				00A43D122F2A349E005FF0AB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				00A43D152F2A349E005FF0AB /* MoakiKeyboard */,
+			);
+			name = MoakiKeyboard;
+			packageProductDependencies = (
+			);
+			productName = MoakiKeyboard;
+			productReference = 00A43D142F2A349E005FF0AB /* MoakiKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +261,9 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 00A43CE32F2A2F8C005FF0AB;
 					};
+					00A43D132F2A349E005FF0AB = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = 00A43CDF2F2A2F8C005FF0AB /* Build configuration list for PBXProject "ios-moaki" */;
@@ -203,6 +283,7 @@
 				00A43CE32F2A2F8C005FF0AB /* ios-moaki */,
 				00A43CF22F2A2F8E005FF0AB /* ios-moakiTests */,
 				00A43CFC2F2A2F8E005FF0AB /* ios-moakiUITests */,
+				00A43D132F2A349E005FF0AB /* MoakiKeyboard */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +304,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		00A43CFB2F2A2F8E005FF0AB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		00A43D122F2A349E005FF0AB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +341,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		00A43D102F2A349E005FF0AB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +360,11 @@
 			isa = PBXTargetDependency;
 			target = 00A43CE32F2A2F8C005FF0AB /* ios-moaki */;
 			targetProxy = 00A43CFE2F2A2F8E005FF0AB /* PBXContainerItemProxy */;
+		};
+		00A43D1A2F2A349E005FF0AB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 00A43D132F2A349E005FF0AB /* MoakiKeyboard */;
+			targetProxy = 00A43D192F2A349E005FF0AB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -538,6 +638,62 @@
 			};
 			name = Release;
 		};
+		00A43D1E2F2A349E005FF0AB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M23FFWRBMY;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MoakiKeyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MoakiKeyboard;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "vkehfdl1.ios-moaki.MoakiKeyboard";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		00A43D1F2F2A349E005FF0AB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M23FFWRBMY;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MoakiKeyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MoakiKeyboard;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "vkehfdl1.ios-moaki.MoakiKeyboard";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -573,6 +729,15 @@
 			buildConfigurations = (
 				00A43D0E2F2A2F8E005FF0AB /* Debug */,
 				00A43D0F2F2A2F8E005FF0AB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		00A43D1D2F2A349E005FF0AB /* Build configuration list for PBXNativeTarget "MoakiKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				00A43D1E2F2A349E005FF0AB /* Debug */,
+				00A43D1F2F2A349E005FF0AB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
