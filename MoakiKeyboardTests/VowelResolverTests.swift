@@ -30,11 +30,11 @@ final class VowelResolverTests: XCTestCase {
         // ㅓ = ←
         XCTAssertEqual(resolver.resolve(directions: [.left]).vowel, .ㅓ)
 
-        // ㅡ = ↙
-        XCTAssertEqual(resolver.resolve(directions: [.downLeft]).vowel, .ㅡ)
+        // ㅜ = ↙ (normalizes to ↓)
+        XCTAssertEqual(resolver.resolve(directions: [.downLeft]).vowel, .ㅜ)
 
-        // ㅣ = ↖
-        XCTAssertEqual(resolver.resolve(directions: [.upLeft]).vowel, .ㅣ)
+        // ㅗ = ↖ (normalizes to ↑)
+        XCTAssertEqual(resolver.resolve(directions: [.upLeft]).vowel, .ㅗ)
     }
 
     // MARK: - Y-Vowel Tests (Triple Direction)
@@ -62,8 +62,8 @@ final class VowelResolverTests: XCTestCase {
         // ㅙ = ↑→←
         XCTAssertEqual(resolver.resolve(directions: [.up, .right, .left]).vowel, .ㅙ)
 
-        // ㅝ = ↓→
-        XCTAssertEqual(resolver.resolve(directions: [.down, .right]).vowel, .ㅝ)
+        // ㅝ = ↓←
+        XCTAssertEqual(resolver.resolve(directions: [.down, .left]).vowel, .ㅝ)
 
         // ㅞ = ↓→←
         XCTAssertEqual(resolver.resolve(directions: [.down, .right, .left]).vowel, .ㅞ)
@@ -94,8 +94,11 @@ final class VowelResolverTests: XCTestCase {
     // MARK: - Special Vowels
 
     func testSpecialVowels() {
-        // ㅢ = ↙↗
-        XCTAssertEqual(resolver.resolve(directions: [.downLeft, .upRight]).vowel, .ㅢ)
+        // ㅢ = ↘↗ (ㅡ + ㅣ 대각선)
+        XCTAssertEqual(resolver.resolve(directions: [.downRight, .upRight]).vowel, .ㅢ)
+
+        // ㅢ = ↘↑ (ㅡ + 수직 위)
+        XCTAssertEqual(resolver.resolve(directions: [.downRight, .up]).vowel, .ㅢ)
     }
 
     // MARK: - Edge Cases

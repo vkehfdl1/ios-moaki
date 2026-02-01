@@ -110,6 +110,11 @@ class GestureAnalyzer {
                 continue
             }
 
+            if dir.isCardinal && prev.isDiagonal && next.isDiagonal {
+                // Cardinal between diagonals is transition noise → skip
+                continue
+            }
+
             filtered.append(dir)
         }
 
