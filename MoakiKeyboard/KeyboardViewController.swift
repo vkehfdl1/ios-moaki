@@ -3,9 +3,10 @@ import SwiftUI
 
 class KeyboardViewController: UIInputViewController {
 
-    private var keyboardView: UIHostingController<KeyboardView>?
+    private var keyboardView: UIViewController?
     private let viewModel = KeyboardViewModel()
     private var feedbackGenerator: UIImpactFeedbackGenerator?
+    private var heightConstraint: NSLayoutConstraint?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -22,19 +23,24 @@ class KeyboardViewController: UIInputViewController {
         )
         heightConstraint.priority = .required
         view.addConstraint(heightConstraint)
+        self.heightConstraint = heightConstraint
 
         viewModel.delegate = self
         setupKeyboardView()
         setupHapticFeedback()
     }
 
-    override func viewWillLayoutSubviews() {
-        super.viewWillLayoutSubviews()
-        keyboardView?.view.frame = view.bounds
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        heightConstraint?.constant = 260
+        heightConstraint?.isActive = true
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
     }
 
     private func setupKeyboardView() {
-        let hostingController = UIHostingController(rootView: KeyboardView(viewModel: viewModel))
+        let rootView = KeyboardView(viewModel: viewModel).ignoresSafeArea(.all)
+        let hostingController = UIHostingController(rootView: rootView)
         hostingController.view.backgroundColor = .clear
         hostingController.view.translatesAutoresizingMaskIntoConstraints = false
 
