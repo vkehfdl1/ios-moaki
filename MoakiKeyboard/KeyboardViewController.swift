@@ -41,10 +41,15 @@ class KeyboardViewController: UIInputViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
+        // This runs on every keyboard appearance, not just after backgrounding.
+        // Keyboard extensions can't reliably observe UIApplication lifecycle
+        // notifications, so we apply these lightweight resets unconditionally.
+
         // Force UIHostingController to re-enable touch delivery.
         // After keyboard extension lifecycle transitions, the hosting view
         // can lose touch responsiveness. Toggling isUserInteractionEnabled
         // forces UIKit to re-attach the gesture recognizer hierarchy.
+        // Tested on iOS 17/18. Re-evaluate if touch issues recur on future versions.
         if let hostingView = keyboardView?.view {
             hostingView.isUserInteractionEnabled = false
             hostingView.isUserInteractionEnabled = true
