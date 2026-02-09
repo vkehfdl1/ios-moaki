@@ -242,6 +242,14 @@ class KeyboardViewModel: ObservableObject {
         composer.reset()
     }
 
+    func resetGestureState() {
+        activeKey = nil
+        gestureStartPoint = nil
+        gestureDirections = []
+        previewVowel = nil
+        gestureAnalyzer.reset()
+    }
+
     // MARK: - Private Helpers
 
     private func handleComposerAction(_ action: HangulComposer.ComposerAction) {

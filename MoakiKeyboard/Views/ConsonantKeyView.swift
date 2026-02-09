@@ -52,6 +52,11 @@ struct KeyView: View {
                     onGestureEnd()
                 }
         )
+        .onDisappear {
+            cancelLongPressTimer()
+            isHighlighted = false
+            showNumberPopup = false
+        }
     }
 
     @ViewBuilder

@@ -38,6 +38,22 @@ class KeyboardViewController: UIInputViewController {
         view.layoutIfNeeded()
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        // Force UIHostingController to re-enable touch delivery.
+        // After keyboard extension lifecycle transitions, the hosting view
+        // can lose touch responsiveness. Toggling isUserInteractionEnabled
+        // forces UIKit to re-attach the gesture recognizer hierarchy.
+        if let hostingView = keyboardView?.view {
+            hostingView.isUserInteractionEnabled = false
+            hostingView.isUserInteractionEnabled = true
+        }
+
+        // Reset any stuck gesture state (e.g., user was mid-drag when backgrounding)
+        viewModel.resetGestureState()
+    }
+
     private func setupKeyboardView() {
         let rootView = KeyboardView(viewModel: viewModel).ignoresSafeArea(.all)
         let hostingController = UIHostingController(rootView: rootView)
