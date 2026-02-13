@@ -19,13 +19,19 @@ struct KeyGridView: View {
         VStack(spacing: KeyboardMetrics.keySpacing) {
             ForEach(0..<KeyboardMetrics.gridRows, id: \.self) { row in
                 HStack(spacing: KeyboardMetrics.keySpacing) {
-                    let columnCount = KeyboardMetrics.columnCount(for: row)
+                    let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode)
 
                     ForEach(0..<columnCount, id: \.self) { column in
                         let content = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode)
                         let isActive = activeKey?.row == row && activeKey?.column == column
                         let longPressNumber = isSymbolMode ? nil : KeyboardMetrics.longPressNumber(at: row, column: column)
-                        let width = KeyboardMetrics.keyWidth(for: column, row: row, centerKeyWidth: centerKeyWidth, totalWidth: totalWidth)
+                        let width = KeyboardMetrics.keyWidth(
+                            for: column,
+                            row: row,
+                            centerKeyWidth: centerKeyWidth,
+                            totalWidth: totalWidth,
+                            isSymbolMode: isSymbolMode
+                        )
 
                         KeyView(
                             content: content ?? .symbol(""),

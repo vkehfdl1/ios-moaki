@@ -32,6 +32,9 @@ enum KeyboardMetrics {
     static let directionChangeThreshold: CGFloat = 15 // Distance before direction can change
     static let gestureTimeout: TimeInterval = 0.5    // Max time between direction changes
 
+    // Symbol keypad uses a simple 3-column layout.
+    static let symbolColumns = 3
+
     // Calculate action key width (backspace/return) based on total width
     static func actionKeyWidth(for totalWidth: CGFloat) -> CGFloat {
         return totalWidth * actionKeyWidthRatio
@@ -45,6 +48,13 @@ enum KeyboardMetrics {
         return availableWidth / (symbolWidthRatio * 2 + 5)
     }
 
+    // Calculate symbol keypad key width for 3 columns.
+    static func symbolKeyWidth(for totalWidth: CGFloat) -> CGFloat {
+        let spacing = keySpacing * CGFloat(symbolColumns + 1)  // gaps + edges
+        let availableWidth = totalWidth - spacing
+        return availableWidth / CGFloat(symbolColumns)
+    }
+
     // Calculate key height based on available space
     static func keyHeight(for totalHeight: CGFloat) -> CGFloat {
         let availableHeight = totalHeight - functionRowHeight - keySpacing * CGFloat(gridRows + 2)
@@ -52,7 +62,11 @@ enum KeyboardMetrics {
     }
 
     // Get key width for specific column and row
-    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat, totalWidth: CGFloat) -> CGFloat {
+    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat, totalWidth: CGFloat, isSymbolMode: Bool) -> CGFloat {
+        if isSymbolMode {
+            return symbolKeyWidth(for: totalWidth)
+        }
+
         let sideWidth = centerKeyWidth * symbolWidthRatio
 
         // Row 3: backspace (col 5) fills remaining space to match row 0-2 width
@@ -71,9 +85,11 @@ enum KeyboardMetrics {
         return centerKeyWidth
     }
 
-    // Get number of columns for a row (row 3 has 6 columns, others have 7)
-    static func columnCount(for row: Int) -> Int {
-        return row == 3 ? 6 : 7
+    // Get number of columns for a row in the active layout.
+    static func columnCount(for row: Int, isSymbolMode: Bool) -> Int {
+        let layout = isSymbolMode ? symbolLayout : koreanLayout
+        guard row >= 0 && row < layout.count else { return 0 }
+        return layout[row].count
     }
 
     // Calculate key size based on available width (legacy method for compatibility)
@@ -93,13 +109,16 @@ enum KeyboardMetrics {
         [.symbol("*"), .consonant(.ㅋ), .consonant(.ㅌ), .consonant(.ㅊ), .consonant(.ㅍ), .backspace],  // 6 columns
     ]
 
-    // Symbol/number mode layout (7 columns for rows 0-2, 6 columns for row 3)
-    // Numbers in center columns, extra symbols on sides
+    // Symbol/number mode keypad layout.
+    // 1 2 3
+    // 4 5 6
+    // 7 8 9
+    // # 0 *
     static let symbolLayout: [[KeyContent]] = [
-        [.symbol("`"), .symbol("1"), .symbol("2"), .symbol("3"), .symbol("4"), .symbol("5"), .symbol("/")],
-        [.symbol("\\"), .symbol("6"), .symbol("7"), .symbol("8"), .symbol("9"), .symbol("0"), .symbol("=")],
-        [.symbol("|"), .symbol("-"), .symbol("+"), .symbol("@"), .symbol("#"), .symbol("$"), .symbol("%")],
-        [.symbol("&"), .symbol("("), .symbol(")"), .symbol("'"), .symbol("\""), .backspace],  // 6 columns
+        [.symbol("1"), .symbol("2"), .symbol("3")],
+        [.symbol("4"), .symbol("5"), .symbol("6")],
+        [.symbol("7"), .symbol("8"), .symbol("9")],
+        [.symbol("#"), .symbol("0"), .symbol("*")],
     ]
 
     // Long press number mapping for Korean mode
