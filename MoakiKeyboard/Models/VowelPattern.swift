@@ -33,8 +33,14 @@ struct VowelPattern {
         // Complex vowels (diphthongs)
         VowelPattern(.ㅘ, .up, .right),                   // ↑→
         VowelPattern(.ㅙ, .up, .right, .left),            // ↑→←
+        VowelPattern(.ㅙ, .up, .right, .down),            // ↑→↓ (세 번째 획이 ↙로 빠진 입력 정규화)
+        VowelPattern(.ㅙ, .up, .upRight, .left),          // ↑↗← (두 번째 획 drift)
+        VowelPattern(.ㅙ, .up, .upRight, .down),          // ↑↗↓ (두 번째+세 번째 획 drift)
         VowelPattern(.ㅝ, .down, .left),                  // ↓←
         VowelPattern(.ㅞ, .down, .right, .left),          // ↓→←
+        VowelPattern(.ㅞ, .down, .right, .down),          // ↓→↓ (세 번째 획이 ↙로 빠진 입력 정규화)
+        VowelPattern(.ㅞ, .down, .downRight, .left),      // ↓↘← (두 번째 획 drift)
+        VowelPattern(.ㅞ, .down, .downRight, .down),      // ↓↘↓ (두 번째+세 번째 획 drift)
         VowelPattern(.ㅚ, .up, .down),                    // ↑↓
         VowelPattern(.ㅟ, .down, .up),                    // ↓↑
 

@@ -91,6 +91,43 @@ final class VowelResolverTests: XCTestCase {
         XCTAssertEqual(resolver.resolve(directions: [.down, .up]).vowel, .ㅟ)
     }
 
+    // MARK: - Diphthong Diagonal Drift Tests
+
+    func testDiphthongDiagonalDrift() {
+        // ㅙ = ↑→↙ (세 번째 획이 ↙로 빠질 때, 정규화 후 ↑→↓)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right, .downLeft]).vowel, .ㅙ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right, .down]).vowel, .ㅙ)
+
+        // ㅙ = ↑↗← (두 번째 획이 ↗로 빠질 때)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .left]).vowel, .ㅙ)
+
+        // ㅙ = ↑↗↙ (두 번째/세 번째 획이 모두 대각선으로 빠질 때, 정규화 후 ↑↗↓)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .downLeft]).vowel, .ㅙ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .down]).vowel, .ㅙ)
+
+        // ㅞ = ↓→↙ (세 번째 획이 ↙로 빠질 때, 정규화 후 ↓→↓)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .right, .downLeft]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .right, .down]).vowel, .ㅞ)
+
+        // ㅞ = ↓↘← (두 번째 획이 ↘로 빠질 때)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downRight, .left]).vowel, .ㅞ)
+
+        // ㅞ = ↓↘↙ (두 번째/세 번째 획이 모두 대각선으로 빠질 때, 정규화 후 ↓↘↓)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downRight, .downLeft]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downRight, .down]).vowel, .ㅞ)
+    }
+
+    func testDiphthongDriftDoesNotOverMatch() {
+        // ㅘ should remain stable (3번째 위 반전은 ㅙ로 보정하지 않음)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right]).vowel, .ㅘ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right, .up]).vowel, .ㅘ)
+        XCTAssertNotEqual(resolver.resolve(directions: [.up, .right, .up]).vowel, .ㅙ)
+
+        // ㅞ 주변 패턴 과인식 방지 (기존 prefix 매칭 동작은 유지)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .right, .up]).vowel, .ㅜ)
+        XCTAssertNotEqual(resolver.resolve(directions: [.down, .right, .up]).vowel, .ㅞ)
+    }
+
     // MARK: - Ae/E Vowel Tests
 
     func testAeEVowels() {
