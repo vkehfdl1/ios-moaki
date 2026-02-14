@@ -20,27 +20,15 @@ struct VowelPattern {
 
         // Y-vowels (triple direction)
         VowelPattern(.ㅛ, .up, .down, .up),               // ↑↓↑
-        VowelPattern(.ㅛ, .up, .downRight, .up),          // ↖↘↖ (정규화 후)
-        VowelPattern(.ㅛ, .up, .down, .upRight),          // ↑↓↗ (세 번째 획이 ↗로 빠질 때)
-        VowelPattern(.ㅛ, .up, .downRight, .upRight),     // ↑↘↗ (중간+세 번째 모두 오른쪽 대각선)
         VowelPattern(.ㅠ, .down, .up, .down),             // ↓↑↓
-        VowelPattern(.ㅠ, .down, .upRight, .down),        // ↙↗↙ (정규화 후)
-        VowelPattern(.ㅠ, .down, .up, .downRight),        // ↓↑↘ (세 번째 획이 ↘로 빠질 때)
-        VowelPattern(.ㅠ, .down, .upRight, .downRight),   // ↓↗↘ (중간+세 번째 모두 오른쪽 대각선)
         VowelPattern(.ㅑ, .right, .left, .right),         // →←→
         VowelPattern(.ㅕ, .left, .right, .left),          // ←→←
 
         // Complex vowels (diphthongs)
         VowelPattern(.ㅘ, .up, .right),                   // ↑→
         VowelPattern(.ㅙ, .up, .right, .left),            // ↑→←
-        VowelPattern(.ㅙ, .up, .right, .down),            // ↑→↓ (세 번째 획이 ↙로 빠진 입력 정규화)
-        VowelPattern(.ㅙ, .up, .upRight, .left),          // ↑↗← (두 번째 획 drift)
-        VowelPattern(.ㅙ, .up, .upRight, .down),          // ↑↗↓ (두 번째+세 번째 획 drift)
         VowelPattern(.ㅝ, .down, .left),                  // ↓←
         VowelPattern(.ㅞ, .down, .right, .left),          // ↓→←
-        VowelPattern(.ㅞ, .down, .right, .down),          // ↓→↓ (세 번째 획이 ↙로 빠진 입력 정규화)
-        VowelPattern(.ㅞ, .down, .downRight, .left),      // ↓↘← (두 번째 획 drift)
-        VowelPattern(.ㅞ, .down, .downRight, .down),      // ↓↘↓ (두 번째+세 번째 획 drift)
         VowelPattern(.ㅚ, .up, .down),                    // ↑↓
         VowelPattern(.ㅟ, .down, .up),                    // ↓↑
 

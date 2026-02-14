@@ -94,38 +94,37 @@ final class VowelResolverTests: XCTestCase {
     // MARK: - Diphthong Diagonal Drift Tests
 
     func testDiphthongDiagonalDrift() {
-        // ㅙ = ↑→↙ (세 번째 획이 ↙로 빠질 때, 정규화 후 ↑→↓)
+        // ㅙ = ↑→↙ (세 번째 획이 ↙로 빠지면 ← 성분으로 해석)
         XCTAssertEqual(resolver.resolve(directions: [.up, .right, .downLeft]).vowel, .ㅙ)
-        XCTAssertEqual(resolver.resolve(directions: [.up, .right, .down]).vowel, .ㅙ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right, .down]).vowel, .ㅘ)
 
-        // ㅙ = ↑↗← (두 번째 획이 ↗로 빠질 때)
+        // ㅙ = ↑↗← (두 번째 획이 ↗면 → 성분으로 해석)
         XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .left]).vowel, .ㅙ)
 
-        // ㅙ = ↑↗↙ (두 번째/세 번째 획이 모두 대각선으로 빠질 때, 정규화 후 ↑↗↓)
+        // ㅙ = ↑↗↙ (두 번째/세 번째 획 모두 대각선이어도 →/← 성분을 추출)
         XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .downLeft]).vowel, .ㅙ)
-        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .down]).vowel, .ㅙ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .down]).vowel, .ㅘ)
 
-        // ㅞ = ↓→↙ (세 번째 획이 ↙로 빠질 때, 정규화 후 ↓→↓)
+        // ㅞ = ↓→↙ (세 번째 획이 ↙면 ← 성분으로 해석)
         XCTAssertEqual(resolver.resolve(directions: [.down, .right, .downLeft]).vowel, .ㅞ)
-        XCTAssertEqual(resolver.resolve(directions: [.down, .right, .down]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .right, .down]).vowel, .ㅜ)
 
-        // ㅞ = ↓↘← (두 번째 획이 ↘로 빠질 때)
+        // ㅞ = ↓↘← (두 번째 획이 ↘면 → 성분으로 해석)
         XCTAssertEqual(resolver.resolve(directions: [.down, .downRight, .left]).vowel, .ㅞ)
 
-        // ㅞ = ↓↘↙ (두 번째/세 번째 획이 모두 대각선으로 빠질 때, 정규화 후 ↓↘↓)
+        // ㅞ = ↓↘↙ (두 번째/세 번째 획 모두 대각선이어도 →/← 성분을 추출)
         XCTAssertEqual(resolver.resolve(directions: [.down, .downRight, .downLeft]).vowel, .ㅞ)
-        XCTAssertEqual(resolver.resolve(directions: [.down, .downRight, .down]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downRight, .down]).vowel, .ㅜ)
     }
 
-    func testDiphthongDriftDoesNotOverMatch() {
-        // ㅘ should remain stable (3번째 위 반전은 ㅙ로 보정하지 않음)
+    func testDiphthongDriftFallsBackToPrefixMatch() {
+        // Additional trailing movement should still keep the best prefix vowel instead of nil.
         XCTAssertEqual(resolver.resolve(directions: [.up, .right]).vowel, .ㅘ)
         XCTAssertEqual(resolver.resolve(directions: [.up, .right, .up]).vowel, .ㅘ)
-        XCTAssertNotEqual(resolver.resolve(directions: [.up, .right, .up]).vowel, .ㅙ)
 
-        // ㅞ 주변 패턴 과인식 방지 (기존 prefix 매칭 동작은 유지)
-        XCTAssertEqual(resolver.resolve(directions: [.down, .right, .up]).vowel, .ㅜ)
+        // Should never over-promote to ㅞ without right-then-left evidence.
         XCTAssertNotEqual(resolver.resolve(directions: [.down, .right, .up]).vowel, .ㅞ)
+        XCTAssertNotNil(resolver.resolve(directions: [.down, .right, .up]).vowel)
     }
 
     // MARK: - Ae/E Vowel Tests
@@ -176,13 +175,24 @@ final class VowelResolverTests: XCTestCase {
         XCTAssertEqual(result.vowel, .ㅣ)
     }
 
+    func testRepeatCollapseAndTrailingDiagonalNormalization() {
+        // Repeated same direction should collapse.
+        XCTAssertEqual(resolver.resolve(directions: [.up, .up, .down]).vowel, .ㅚ)
+
+        // ㅙ: ↑ + (↗ normalized to →) + ←
+        XCTAssertEqual(resolver.resolve(directions: [.up, .up, .upRight, .left]).vowel, .ㅙ)
+
+        // ㅞ: ↓ + (↘ normalized to →) + (↙ normalized to ← via previous horizontal context)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .down, .downRight, .downLeft]).vowel, .ㅞ)
+    }
+
     // MARK: - Peek Vowel Tests
 
     func testPeekVowel() {
         // Should return the current matched vowel without consuming
         XCTAssertEqual(resolver.peekVowel(directions: [.up]), .ㅗ)
         XCTAssertEqual(resolver.peekVowel(directions: [.up, .right]), .ㅘ)
-        XCTAssertNil(resolver.peekVowel(directions: [.down, .right])) // ambiguous prefix while typing ㅞ
+        XCTAssertEqual(resolver.peekVowel(directions: [.down, .right]), .ㅜ) // fallback to best prefix
         XCTAssertNil(resolver.peekVowel(directions: []))
     }
 

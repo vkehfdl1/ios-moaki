@@ -3,24 +3,9 @@ import Foundation
 class VowelResolver {
     private let patternTrie = VowelPattern.patternTrie
 
-    private let maxCandidateCount = 64
-    private let complexPreferenceBonus = 0.30
-    private let threeStrokeBonus = 0.15
-    private let partialMatchPenalty = 0.35
-    private let missingChangePenalty = 0.40
-    private let noRightEvidencePenalty = 0.60
-    private let peekConfidenceThreshold = 0.90
-    private let ambiguousPeekThreshold = 0.15
-
     struct Resolution {
         let vowel: Jungseong?
         let hasMoreMatches: Bool
-    }
-
-    private struct CandidateEvaluation {
-        let directions: [GestureDirection]
-        let match: PatternTrie.MatchResult
-        let score: Double
     }
 
     func resolve(directions: [GestureDirection]) -> Resolution {
@@ -28,223 +13,102 @@ class VowelResolver {
             return Resolution(vowel: nil, hasMoreMatches: false)
         }
 
-        let evaluations = evaluateCandidates(for: directions)
-        guard let best = evaluations.max(by: { $0.score < $1.score }) else {
-            return Resolution(vowel: nil, hasMoreMatches: false)
-        }
-
-        return Resolution(
-            vowel: best.match.vowel,
-            hasMoreMatches: best.match.hasLongerMatch
-        )
+        let normalized = normalizeForMatching(directions)
+        let match = patternTrie.match(normalized)
+        return Resolution(vowel: match.vowel, hasMoreMatches: match.hasLongerMatch)
     }
 
     // For real-time feedback during gesture
     func peekVowel(directions: [GestureDirection]) -> Jungseong? {
         guard !directions.isEmpty else { return nil }
-
-        let evaluations = evaluateCandidates(for: directions)
-        guard !evaluations.isEmpty else { return nil }
-
-        let sorted = evaluations.sorted { $0.score > $1.score }
-        guard let top = sorted.first, let topVowel = top.match.vowel else {
-            return nil
-        }
-
-        let topIsExact = top.match.consumedCount == directions.count
-        if topIsExact && top.score >= peekConfidenceThreshold {
-            return topVowel
-        }
-
-        if top.match.hasLongerMatch {
-            return nil
-        }
-
-        if sorted.count > 1 {
-            let runnerUp = sorted[1]
-            if abs(top.score - runnerUp.score) <= ambiguousPeekThreshold {
-                return nil
-            }
-        }
-
-        return topVowel
+        let normalized = normalizeForMatching(directions)
+        return patternTrie.match(normalized).vowel
     }
 
     // Check if current directions could potentially match a vowel
     func hasPotentialMatch(directions: [GestureDirection]) -> Bool {
         guard !directions.isEmpty else { return false }
-        let evaluations = evaluateCandidates(for: directions)
-        return evaluations.contains { $0.match.vowel != nil || $0.match.hasLongerMatch }
+        let normalized = normalizeForMatching(directions)
+        let match = patternTrie.match(normalized)
+        return match.vowel != nil || match.hasLongerMatch
     }
 
-    private func evaluateCandidates(for directions: [GestureDirection]) -> [CandidateEvaluation] {
-        let candidates = generateCandidates(from: directions)
-        var evaluations: [CandidateEvaluation] = []
+    /// Normalization rules:
+    /// 1. First stroke keeps 8-direction intent, except ↖/↙ are canonicalized to ↑/↓.
+    /// 2. From the second stroke onward, diagonals are mapped to a single cardinal axis.
+    /// 3. Consecutive identical directions collapse into one stroke.
+    private func normalizeForMatching(_ directions: [GestureDirection]) -> [GestureDirection] {
+        guard !directions.isEmpty else { return [] }
 
-        for candidate in candidates {
-            let match = patternTrie.match(candidate)
-            let score = scoreCandidate(
-                original: directions,
-                candidate: candidate,
-                match: match
-            )
-            evaluations.append(
-                CandidateEvaluation(
-                    directions: candidate,
-                    match: match,
-                    score: score
-                )
-            )
-        }
-
-        return evaluations
-    }
-
-    private func generateCandidates(from directions: [GestureDirection]) -> [[GestureDirection]] {
-        var candidates: [[GestureDirection]] = []
-        var queue: [[GestureDirection]] = [[]]
+        var normalized: [GestureDirection] = []
+        normalized.reserveCapacity(directions.count)
 
         for (index, direction) in directions.enumerated() {
-            let options = normalizedOptions(for: direction, at: index)
-            var nextQueue: [[GestureDirection]] = []
-
-            for prefix in queue {
-                for option in options {
-                    var next = prefix
-                    next.append(option)
-                    nextQueue.append(next)
-                    if nextQueue.count >= maxCandidateCount {
-                        break
-                    }
-                }
-                if nextQueue.count >= maxCandidateCount {
-                    break
-                }
+            let next: GestureDirection
+            if index == 0 {
+                next = normalizeFirstStroke(direction)
+            } else {
+                next = normalizeTrailingStroke(direction, previous: normalized.last)
             }
 
-            queue = nextQueue
-            if queue.isEmpty {
-                break
+            // Treat repeated same-direction segments as one stroke.
+            if normalized.last != next {
+                normalized.append(next)
             }
         }
 
-        candidates.append(contentsOf: queue)
-        if !candidates.contains(directions) {
-            candidates.append(directions)
-        }
-        return candidates
+        return normalized
     }
 
-    private func normalizedOptions(for direction: GestureDirection, at index: Int) -> [GestureDirection] {
-        var options: [GestureDirection] = [direction]
+    private func normalizeFirstStroke(_ direction: GestureDirection) -> GestureDirection {
+        switch direction {
+        case .upLeft:
+            return .up
+        case .downLeft:
+            return .down
+        default:
+            return direction
+        }
+    }
 
-        if index == 0 {
-            switch direction {
-            case .upLeft:
-                options.append(.up)
-            case .downLeft:
-                options.append(.down)
-            default:
-                break
-            }
+    private func normalizeTrailingStroke(_ direction: GestureDirection,
+                                         previous: GestureDirection?) -> GestureDirection {
+        guard direction.isDiagonal else { return direction }
+
+        guard let (vertical, horizontal) = diagonalComponents(of: direction) else {
+            return direction
         }
 
+        guard let previous else {
+            return vertical
+        }
+
+        // If the previous stroke is horizontal, keep the diagonal's horizontal intent.
+        if previous == .left || previous == .right {
+            return horizontal
+        }
+
+        // For vertical previous strokes, choose horizontal only when the diagonal
+        // shares the same vertical intent (e.g. ↑ then ↗ => →, ↓ then ↘ => →).
+        if previous == vertical {
+            return horizontal
+        }
+
+        return vertical
+    }
+
+    private func diagonalComponents(of direction: GestureDirection) -> (vertical: GestureDirection, horizontal: GestureDirection)? {
         switch direction {
         case .upRight:
-            options.append(contentsOf: [.up, .right])
-        case .downRight:
-            options.append(contentsOf: [.down, .right])
+            return (.up, .right)
         case .upLeft:
-            options.append(contentsOf: [.up, .left])
+            return (.up, .left)
+        case .downRight:
+            return (.down, .right)
         case .downLeft:
-            options.append(contentsOf: [.down, .left])
+            return (.down, .left)
         default:
-            break
-        }
-
-        var deduped: [GestureDirection] = []
-        for option in options where !deduped.contains(option) {
-            deduped.append(option)
-        }
-        return deduped
-    }
-
-    private func scoreCandidate(original: [GestureDirection],
-                                candidate: [GestureDirection],
-                                match: PatternTrie.MatchResult) -> Double {
-        guard let vowel = match.vowel else {
-            // Prefix-only matches are still useful for hasMoreMatches tracking.
-            return match.hasLongerMatch ? 0.10 : 0.0
-        }
-
-        let consumedRatio = Double(match.consumedCount) / Double(max(candidate.count, 1))
-        var score = consumedRatio
-
-        if match.consumedCount < candidate.count {
-            score -= partialMatchPenalty
-        }
-
-        if isComplexVowel(vowel) && match.consumedCount == candidate.count {
-            score += complexPreferenceBonus
-        }
-
-        if isThreeStrokeSensitiveVowel(vowel) && match.consumedCount == 3 {
-            score += threeStrokeBonus
-        }
-
-        if isThreeStrokeSensitiveVowel(vowel), !hasTwoDirectionChanges(in: original) {
-            score -= missingChangePenalty
-        }
-
-        if vowel == .ㅞ && !hasRightFamilySecondStroke(in: original) {
-            score -= noRightEvidencePenalty
-        }
-
-        return score
-    }
-
-    private func isThreeStrokeSensitiveVowel(_ vowel: Jungseong) -> Bool {
-        switch vowel {
-        case .ㅙ, .ㅞ, .ㅛ, .ㅠ, .ㅑ, .ㅕ:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func isComplexVowel(_ vowel: Jungseong) -> Bool {
-        switch vowel {
-        case .ㅙ, .ㅞ:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func hasTwoDirectionChanges(in directions: [GestureDirection]) -> Bool {
-        guard directions.count >= 3 else { return false }
-
-        var changes = 0
-        var last = directions[0]
-        for direction in directions.dropFirst() {
-            if direction != last {
-                changes += 1
-                last = direction
-            }
-            if changes >= 2 {
-                return true
-            }
-        }
-        return false
-    }
-
-    private func hasRightFamilySecondStroke(in directions: [GestureDirection]) -> Bool {
-        guard directions.count >= 2 else { return false }
-        switch directions[1] {
-        case .right, .upRight, .downRight:
-            return true
-        default:
-            return false
+            return nil
         }
     }
 }
