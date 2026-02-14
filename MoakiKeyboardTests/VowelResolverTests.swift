@@ -81,14 +81,50 @@ final class VowelResolverTests: XCTestCase {
         // ㅝ = ↓←
         XCTAssertEqual(resolver.resolve(directions: [.down, .left]).vowel, .ㅝ)
 
-        // ㅞ = ↓→←
-        XCTAssertEqual(resolver.resolve(directions: [.down, .right, .left]).vowel, .ㅞ)
+        // ㅞ = ↓←→
+        XCTAssertEqual(resolver.resolve(directions: [.down, .left, .right]).vowel, .ㅞ)
 
         // ㅚ = ↑↓
         XCTAssertEqual(resolver.resolve(directions: [.up, .down]).vowel, .ㅚ)
 
         // ㅟ = ↓↑
         XCTAssertEqual(resolver.resolve(directions: [.down, .up]).vowel, .ㅟ)
+    }
+
+    // MARK: - Diphthong Diagonal Drift Tests
+
+    func testDiphthongDiagonalDrift() {
+        // ㅙ = ↑→↙ (세 번째 획이 ↙로 빠지면 ← 성분으로 해석)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right, .downLeft]).vowel, .ㅙ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right, .down]).vowel, .ㅘ)
+
+        // ㅙ = ↑↗← (두 번째 획이 ↗면 → 성분으로 해석)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .left]).vowel, .ㅙ)
+
+        // ㅙ = ↑↗↙ (두 번째/세 번째 획 모두 대각선이어도 →/← 성분을 추출)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .downLeft]).vowel, .ㅙ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .down]).vowel, .ㅘ)
+
+        // ㅞ = ↓←↘ (세 번째 획이 ↘면 → 성분으로 해석)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .left, .downRight]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .left, .down]).vowel, .ㅝ)
+
+        // ㅞ = ↓↙→ (두 번째 획이 ↙면 ← 성분으로 해석)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downLeft, .right]).vowel, .ㅞ)
+
+        // ㅞ = ↓↙↘ (두 번째/세 번째 획 모두 대각선이어도 ←/→ 성분을 추출)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downLeft, .downRight]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downLeft, .down]).vowel, .ㅝ)
+    }
+
+    func testDiphthongDriftFallsBackToPrefixMatch() {
+        // Additional trailing movement should still keep the best prefix vowel instead of nil.
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right]).vowel, .ㅘ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .right, .up]).vowel, .ㅘ)
+
+        // Should never over-promote to ㅞ without left-then-right evidence.
+        XCTAssertNotEqual(resolver.resolve(directions: [.down, .left, .up]).vowel, .ㅞ)
+        XCTAssertNotNil(resolver.resolve(directions: [.down, .left, .up]).vowel)
     }
 
     // MARK: - Ae/E Vowel Tests
@@ -134,10 +170,20 @@ final class VowelResolverTests: XCTestCase {
     }
 
     func testNoMatch() {
-        // ↗ alone doesn't match any pattern as a complete vowel
-        // (it's only part of ㅢ = ↙↗)
+        // ↗ should resolve to ㅣ
         let result = resolver.resolve(directions: [.upRight])
-        XCTAssertNil(result.vowel)
+        XCTAssertEqual(result.vowel, .ㅣ)
+    }
+
+    func testRepeatCollapseAndTrailingDiagonalNormalization() {
+        // Repeated same direction should collapse.
+        XCTAssertEqual(resolver.resolve(directions: [.up, .up, .down]).vowel, .ㅚ)
+
+        // ㅙ: ↑ + (↗ normalized to →) + ←
+        XCTAssertEqual(resolver.resolve(directions: [.up, .up, .upRight, .left]).vowel, .ㅙ)
+
+        // ㅞ: ↓ + (↙ normalized to ←) + (↘ normalized to → via previous horizontal context)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .down, .downLeft, .downRight]).vowel, .ㅞ)
     }
 
     // MARK: - Peek Vowel Tests
@@ -146,6 +192,7 @@ final class VowelResolverTests: XCTestCase {
         // Should return the current matched vowel without consuming
         XCTAssertEqual(resolver.peekVowel(directions: [.up]), .ㅗ)
         XCTAssertEqual(resolver.peekVowel(directions: [.up, .right]), .ㅘ)
+        XCTAssertEqual(resolver.peekVowel(directions: [.down, .right]), .ㅜ) // fallback to best prefix
         XCTAssertNil(resolver.peekVowel(directions: []))
     }
 
@@ -155,7 +202,44 @@ final class VowelResolverTests: XCTestCase {
         // Single direction that could be part of longer pattern
         XCTAssertTrue(resolver.hasPotentialMatch(directions: [.up])) // Could be ㅗ, ㅘ, ㅙ, ㅚ, ㅛ
 
-        // Direction sequence that doesn't match anything
-        XCTAssertFalse(resolver.hasPotentialMatch(directions: [.upRight]))
+        // ㅣ is a complete match, and can also be a component of longer patterns
+        XCTAssertTrue(resolver.hasPotentialMatch(directions: [.upRight]))
+    }
+
+    // MARK: - Gesture Finalization + Resolver Integration
+
+    func testFinalizeAndResolvePreservesWeDiagonalTurn() {
+        let analyzer = GestureAnalyzer(threshold: 20, reversalThreshold: 10, directionChangeThreshold: 15)
+        analyzer.addPoint(CGPoint(x: 100, y: 100))
+        analyzer.addPoint(CGPoint(x: 100, y: 128))   // ↓
+        analyzer.addPoint(CGPoint(x: 76, y: 152))    // ↙
+        analyzer.addPoint(CGPoint(x: 104, y: 152))   // →
+
+        let finalDirections = analyzer.finalizeGesture()
+        XCTAssertEqual(finalDirections, [.down, .downLeft, .right])
+        XCTAssertEqual(resolver.resolve(directions: finalDirections).vowel, .ㅞ)
+    }
+
+    func testFinalizeAndResolvePreservesWaeDiagonalTurn() {
+        let analyzer = GestureAnalyzer(threshold: 20, reversalThreshold: 10, directionChangeThreshold: 15)
+        analyzer.addPoint(CGPoint(x: 100, y: 100))
+        analyzer.addPoint(CGPoint(x: 100, y: 72))    // ↑
+        analyzer.addPoint(CGPoint(x: 124, y: 48))    // ↗
+        analyzer.addPoint(CGPoint(x: 96, y: 48))     // ←
+
+        let finalDirections = analyzer.finalizeGesture()
+        XCTAssertEqual(finalDirections, [.up, .upRight, .left])
+        XCTAssertEqual(resolver.resolve(directions: finalDirections).vowel, .ㅙ)
+    }
+
+    func testWeRequiresLeftFamilySecondStroke() {
+        // No left-family evidence in the second stroke, so this should not be ㅞ.
+        XCTAssertNotEqual(resolver.resolve(directions: [.down, .right, .down]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .right, .down]).vowel, .ㅜ)
+    }
+
+    func testResolvePrefersThreeStrokeComplexWhenEvidenceExists() {
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downLeft, .downRight]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .downLeft]).vowel, .ㅙ)
     }
 }

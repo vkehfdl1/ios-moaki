@@ -92,6 +92,43 @@ final class GestureAnalyzerTests: XCTestCase {
         XCTAssertEqual(analyzer.getDirections(), [], "First direction should require full threshold")
     }
 
+    // MARK: - Finalize Gesture Normalization Tests
+
+    func testFinalizeKeepsMeaningfulMiddleDiagonalForThreeStrokeTurn() {
+        let analyzer = GestureAnalyzer(threshold: 20, reversalThreshold: 10, directionChangeThreshold: 15)
+
+        analyzer.addPoint(CGPoint(x: 100, y: 100))
+        analyzer.addPoint(CGPoint(x: 100, y: 126))   // ↓
+        analyzer.addPoint(CGPoint(x: 122, y: 148))   // ↘
+        analyzer.addPoint(CGPoint(x: 96, y: 148))    // ←
+
+        XCTAssertEqual(analyzer.getDirections(), [.down, .downRight, .left])
+        XCTAssertEqual(analyzer.finalizeGesture(), [.down, .downRight, .left])
+    }
+
+    func testFinalizeCollapsesTinyDiagonalJitterWhenPathReturnsToSameDirection() {
+        let analyzer = GestureAnalyzer(threshold: 8, reversalThreshold: 6, directionChangeThreshold: 8)
+
+        analyzer.addPoint(CGPoint(x: 100, y: 100))
+        analyzer.addPoint(CGPoint(x: 100, y: 70))    // ↑
+        analyzer.addPoint(CGPoint(x: 109, y: 61))    // small ↗ jitter
+        analyzer.addPoint(CGPoint(x: 109, y: 45))    // back to ↑
+
+        XCTAssertEqual(analyzer.getDirections(), [.up, .upRight, .up])
+        XCTAssertEqual(analyzer.finalizeGesture(), [.up])
+    }
+
+    func testFinalizeKeepsDownRightLeftSequenceForWePattern() {
+        let analyzer = GestureAnalyzer(threshold: 20, reversalThreshold: 10, directionChangeThreshold: 15)
+
+        analyzer.addPoint(CGPoint(x: 100, y: 100))
+        analyzer.addPoint(CGPoint(x: 100, y: 128))   // ↓
+        analyzer.addPoint(CGPoint(x: 124, y: 152))   // ↘
+        analyzer.addPoint(CGPoint(x: 98, y: 152))    // ←
+
+        XCTAssertEqual(analyzer.finalizeGesture(), [.down, .downRight, .left])
+    }
+
     // MARK: - isOpposite Tests
 
     func testIsOpposite() {

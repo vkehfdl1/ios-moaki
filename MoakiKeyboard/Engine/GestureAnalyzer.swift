@@ -2,8 +2,14 @@ import Foundation
 import CoreGraphics
 
 class GestureAnalyzer {
+    private struct DirectionSegment {
+        var direction: GestureDirection
+        var magnitude: CGFloat
+    }
+
     private var touchPoints: [CGPoint] = []
     private var directions: [GestureDirection] = []
+    private var directionMagnitudes: [CGFloat] = []
     private var lastDirectionChangePoint: CGPoint?
 
     private let threshold: CGFloat
@@ -21,6 +27,7 @@ class GestureAnalyzer {
     func reset() {
         touchPoints.removeAll()
         directions.removeAll()
+        directionMagnitudes.removeAll()
         lastDirectionChangePoint = nil
     }
 
@@ -70,68 +77,106 @@ class GestureAnalyzer {
                 // Make sure we've moved enough from the last direction change
                 if magnitude >= directionChangeThreshold || (newDirection.isOpposite(to: lastDirection) && magnitude >= reversalThreshold) {
                     directions.append(newDirection)
+                    directionMagnitudes.append(magnitude)
                     lastDirectionChangePoint = currentPoint
                 }
             }
         } else {
             // First direction
             directions.append(newDirection)
+            directionMagnitudes.append(magnitude)
             lastDirectionChangePoint = currentPoint
         }
     }
 
     func finalizeGesture() -> [GestureDirection] {
-        return filterIntermediateDiagonals(directions)
+        let segments = zip(directions, directionMagnitudes).map {
+            DirectionSegment(direction: $0.0, magnitude: $0.1)
+        }
+        return normalizeSegments(segments).map { $0.direction }
     }
 
-    /// Remove intermediate diagonals that appear between two cardinal directions during direction transitions
-    /// For example: [.up, .upRight, .right] → [.up, .right]
-    /// But preserve intentional diagonal inputs like [.upLeft] → [.upLeft] for ㅣ
-    private func filterIntermediateDiagonals(_ dirs: [GestureDirection]) -> [GestureDirection] {
-        guard dirs.count >= 3 else { return dirs }
+    /// Keep intentional turns for 3-stroke gestures (important for ㅙ/ㅞ),
+    /// while removing duplicate and jitter-only segments.
+    private func normalizeSegments(_ segments: [DirectionSegment]) -> [DirectionSegment] {
+        guard !segments.isEmpty else { return [] }
 
-        var filtered: [GestureDirection] = []
+        var collapsed = collapseConsecutiveDuplicates(segments)
+        collapsed = collapseTinyOscillations(collapsed)
+        collapsed = trimTinyLeadingAndTrailingNoise(collapsed)
+        return collapsed
+    }
 
-        for (index, dir) in dirs.enumerated() {
-            let isFirst = index == 0
-            let isLast = index == dirs.count - 1
+    private func collapseConsecutiveDuplicates(_ segments: [DirectionSegment]) -> [DirectionSegment] {
+        guard !segments.isEmpty else { return [] }
 
-            // First and last directions are always kept
-            if isFirst || isLast {
-                // Exception: if last is cardinal and previous is an adjacent diagonal,
-                // handle trailing noise
-                if isLast && dir.isCardinal && !filtered.isEmpty {
-                    if let last = filtered.last, last.isDiagonal && last.isAdjacentTo(dir) {
-                        // But if that diagonal is the first direction, keep it (intentional input)
-                        if filtered.count == 1 {
-                            // Keep first diagonal, discard trailing cardinal
-                            continue
-                        }
-                        filtered.removeLast()
-                    }
+        var result: [DirectionSegment] = [segments[0]]
+        for segment in segments.dropFirst() {
+            if segment.direction == result.last?.direction {
+                if segment.magnitude > (result.last?.magnitude ?? 0) {
+                    result[result.count - 1].magnitude = segment.magnitude
                 }
-                filtered.append(dir)
+                continue
+            }
+            result.append(segment)
+        }
+        return result
+    }
+
+    private func collapseTinyOscillations(_ segments: [DirectionSegment]) -> [DirectionSegment] {
+        guard segments.count >= 3 else { return segments }
+
+        var result = segments
+        var index = 1
+
+        let jitterMagnitudeCap = max(reversalThreshold, directionChangeThreshold * 0.8)
+        let jitterRatio: CGFloat = 0.75
+
+        while index < result.count - 1 {
+            let previous = result[index - 1]
+            let current = result[index]
+            let next = result[index + 1]
+
+            let returnsToPrevious = previous.direction == next.direction
+            let isAdjacentJitter = current.direction.isAdjacentTo(previous.direction)
+            let isTinySegment = current.magnitude <= jitterMagnitudeCap ||
+                current.magnitude <= min(previous.magnitude, next.magnitude) * jitterRatio
+
+            if returnsToPrevious && isAdjacentJitter && isTinySegment {
+                result[index - 1].magnitude = max(previous.magnitude, next.magnitude)
+                result.remove(at: index + 1)
+                result.remove(at: index)
+                if index > 1 {
+                    index -= 1
+                }
                 continue
             }
 
-            // Middle directions: skip diagonals between two cardinals
-            let prev = dirs[index - 1]
-            let next = dirs[index + 1]
-
-            if dir.isDiagonal && prev.isCardinal && next.isCardinal {
-                // Intermediate diagonal is transition noise → skip
-                continue
-            }
-
-            if dir.isCardinal && prev.isDiagonal && next.isDiagonal {
-                // Cardinal between diagonals is transition noise → skip
-                continue
-            }
-
-            filtered.append(dir)
+            index += 1
         }
 
-        return filtered
+        return result
+    }
+
+    private func trimTinyLeadingAndTrailingNoise(_ segments: [DirectionSegment]) -> [DirectionSegment] {
+        guard segments.count > 1 else { return segments }
+
+        var result = segments
+        let edgeNoiseCap = max(reversalThreshold, directionChangeThreshold * 0.8)
+
+        if let first = result.first, let second = result.dropFirst().first {
+            if first.magnitude <= edgeNoiseCap && first.direction.isAdjacentTo(second.direction) {
+                result.removeFirst()
+            }
+        }
+
+        if result.count > 1, let last = result.last, let previous = result.dropLast().last {
+            if last.magnitude <= edgeNoiseCap && last.direction.isAdjacentTo(previous.direction) {
+                result.removeLast()
+            }
+        }
+
+        return result
     }
 }
 
