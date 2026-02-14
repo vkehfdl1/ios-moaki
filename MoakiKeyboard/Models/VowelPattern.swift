@@ -28,7 +28,7 @@ struct VowelPattern {
         VowelPattern(.ㅘ, .up, .right),                   // ↑→
         VowelPattern(.ㅙ, .up, .right, .left),            // ↑→←
         VowelPattern(.ㅝ, .down, .left),                  // ↓←
-        VowelPattern(.ㅞ, .down, .right, .left),          // ↓→←
+        VowelPattern(.ㅞ, .down, .left, .right),          // ↓←→
         VowelPattern(.ㅚ, .up, .down),                    // ↑↓
         VowelPattern(.ㅟ, .down, .up),                    // ↓↑
 
