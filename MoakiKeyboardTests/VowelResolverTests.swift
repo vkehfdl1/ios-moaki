@@ -171,10 +171,9 @@ final class VowelResolverTests: XCTestCase {
     }
 
     func testNoMatch() {
-        // ↗ alone doesn't match any pattern as a complete vowel
-        // (it's only part of ㅢ = ↙↗)
+        // ↗ should resolve to ㅣ
         let result = resolver.resolve(directions: [.upRight])
-        XCTAssertNil(result.vowel)
+        XCTAssertEqual(result.vowel, .ㅣ)
     }
 
     // MARK: - Peek Vowel Tests
@@ -183,6 +182,7 @@ final class VowelResolverTests: XCTestCase {
         // Should return the current matched vowel without consuming
         XCTAssertEqual(resolver.peekVowel(directions: [.up]), .ㅗ)
         XCTAssertEqual(resolver.peekVowel(directions: [.up, .right]), .ㅘ)
+        XCTAssertNil(resolver.peekVowel(directions: [.down, .right])) // ambiguous prefix while typing ㅞ
         XCTAssertNil(resolver.peekVowel(directions: []))
     }
 
@@ -192,7 +192,44 @@ final class VowelResolverTests: XCTestCase {
         // Single direction that could be part of longer pattern
         XCTAssertTrue(resolver.hasPotentialMatch(directions: [.up])) // Could be ㅗ, ㅘ, ㅙ, ㅚ, ㅛ
 
-        // Direction sequence that doesn't match anything
-        XCTAssertFalse(resolver.hasPotentialMatch(directions: [.upRight]))
+        // ㅣ is a complete match, and can also be a component of longer patterns
+        XCTAssertTrue(resolver.hasPotentialMatch(directions: [.upRight]))
+    }
+
+    // MARK: - Gesture Finalization + Resolver Integration
+
+    func testFinalizeAndResolvePreservesWeDiagonalTurn() {
+        let analyzer = GestureAnalyzer(threshold: 20, reversalThreshold: 10, directionChangeThreshold: 15)
+        analyzer.addPoint(CGPoint(x: 100, y: 100))
+        analyzer.addPoint(CGPoint(x: 100, y: 128))   // ↓
+        analyzer.addPoint(CGPoint(x: 124, y: 152))   // ↘
+        analyzer.addPoint(CGPoint(x: 98, y: 152))    // ←
+
+        let finalDirections = analyzer.finalizeGesture()
+        XCTAssertEqual(finalDirections, [.down, .downRight, .left])
+        XCTAssertEqual(resolver.resolve(directions: finalDirections).vowel, .ㅞ)
+    }
+
+    func testFinalizeAndResolvePreservesWaeDiagonalTurn() {
+        let analyzer = GestureAnalyzer(threshold: 20, reversalThreshold: 10, directionChangeThreshold: 15)
+        analyzer.addPoint(CGPoint(x: 100, y: 100))
+        analyzer.addPoint(CGPoint(x: 100, y: 72))    // ↑
+        analyzer.addPoint(CGPoint(x: 124, y: 48))    // ↗
+        analyzer.addPoint(CGPoint(x: 96, y: 48))     // ←
+
+        let finalDirections = analyzer.finalizeGesture()
+        XCTAssertEqual(finalDirections, [.up, .upRight, .left])
+        XCTAssertEqual(resolver.resolve(directions: finalDirections).vowel, .ㅙ)
+    }
+
+    func testWeRequiresRightFamilySecondStroke() {
+        // No right-family evidence in the second stroke, so this should not be ㅞ.
+        XCTAssertNotEqual(resolver.resolve(directions: [.down, .left, .down]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.down, .left, .down]).vowel, .ㅝ)
+    }
+
+    func testResolvePrefersThreeStrokeComplexWhenEvidenceExists() {
+        XCTAssertEqual(resolver.resolve(directions: [.down, .downRight, .downLeft]).vowel, .ㅞ)
+        XCTAssertEqual(resolver.resolve(directions: [.up, .upRight, .downLeft]).vowel, .ㅙ)
     }
 }
