@@ -77,7 +77,7 @@ Long press consonants for numbers:
 1. Install [TestFlight](https://apps.apple.com/app/testflight/id899247664) on your iOS device.
 2. Tap the invite link below to install Moaki.
 
-> **TestFlight invite link**: <!-- TODO: Add TestFlight invite link -->
+> **TestFlight invite link**: [Moaki TestFlight](https://testflight.apple.com/join/zWVF8vqJ)
 
 ## Activate the Keyboard
 

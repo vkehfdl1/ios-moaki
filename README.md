@@ -77,7 +77,7 @@
 1. iOS 기기에서 [TestFlight](https://apps.apple.com/app/testflight/id899247664)를 설치합니다.
 2. 아래 초대 링크를 클릭하여 모아키를 설치합니다.
 
-> **TestFlight 초대 링크**: <!-- TODO: TestFlight 초대 링크 추가 -->
+> **TestFlight 초대 링크**: [모아키 TestFlight](https://testflight.apple.com/join/zWVF8vqJ)
 
 ## 키보드 활성화
 
