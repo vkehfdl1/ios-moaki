@@ -5,7 +5,8 @@ struct FunctionRowView: View {
     let isSymbolMode: Bool
     let onToggleModePressed: () -> Void
     let onCommaPressed: () -> Void
-    let onBackspacePressed: () -> Void
+    let onBackspacePressStart: () -> Void
+    let onBackspacePressEnd: () -> Void
     let onSpacePressed: () -> Void
     let onReturnPressed: () -> Void
 
@@ -22,7 +23,9 @@ struct FunctionRowView: View {
                 ),
                 width: toggleWidth,
                 height: height,
-                action: onToggleModePressed
+                action: onToggleModePressed,
+                onPressStart: nil,
+                onPressEnd: nil
             )
 
             // Comma key (left of space)
@@ -40,7 +43,9 @@ struct FunctionRowView: View {
                 ),
                 width: commaWidth,
                 height: height,
-                action: isSymbolMode ? onBackspacePressed : onCommaPressed
+                action: isSymbolMode ? {} : onCommaPressed,
+                onPressStart: isSymbolMode ? onBackspacePressStart : nil,
+                onPressEnd: isSymbolMode ? onBackspacePressEnd : nil
             )
 
             // Space bar
@@ -52,7 +57,9 @@ struct FunctionRowView: View {
                 ),
                 width: spaceWidth,
                 height: height,
-                action: onSpacePressed
+                action: onSpacePressed,
+                onPressStart: nil,
+                onPressEnd: nil
             )
 
             // Return button
@@ -63,7 +70,9 @@ struct FunctionRowView: View {
                 ),
                 width: returnWidth,
                 height: height,
-                action: onReturnPressed
+                action: onReturnPressed,
+                onPressStart: nil,
+                onPressEnd: nil
             )
         }
     }
@@ -97,6 +106,8 @@ struct FunctionKeyView: View {
     let width: CGFloat
     let height: CGFloat
     let action: () -> Void
+    let onPressStart: (() -> Void)?
+    let onPressEnd: (() -> Void)?
 
     @State private var isPressed = false
 
@@ -112,13 +123,30 @@ struct FunctionKeyView: View {
                     .onChanged { _ in
                         if !isPressed {
                             isPressed = true
+                            onPressStart?()
                         }
                     }
                     .onEnded { _ in
+                        guard isPressed else { return }
                         isPressed = false
-                        action()
+                        if isPressDriven {
+                            onPressEnd?()
+                        } else {
+                            action()
+                        }
                     }
             )
+            .onDisappear {
+                guard isPressed else { return }
+                isPressed = false
+                if isPressDriven {
+                    onPressEnd?()
+                }
+            }
+    }
+
+    private var isPressDriven: Bool {
+        onPressStart != nil || onPressEnd != nil
     }
 }
 
@@ -131,7 +159,8 @@ struct FunctionKeyView: View {
             isSymbolMode: false,
             onToggleModePressed: { print("Toggle") },
             onCommaPressed: { print("Comma") },
-            onBackspacePressed: { print("Backspace") },
+            onBackspacePressStart: { print("Backspace start") },
+            onBackspacePressEnd: { print("Backspace end") },
             onSpacePressed: { print("Space") },
             onReturnPressed: { print("Return") }
         )
@@ -143,7 +172,8 @@ struct FunctionKeyView: View {
             isSymbolMode: true,
             onToggleModePressed: { print("Toggle") },
             onCommaPressed: { print("Comma") },
-            onBackspacePressed: { print("Backspace") },
+            onBackspacePressStart: { print("Backspace start") },
+            onBackspacePressEnd: { print("Backspace end") },
             onSpacePressed: { print("Space") },
             onReturnPressed: { print("Return") }
         )
