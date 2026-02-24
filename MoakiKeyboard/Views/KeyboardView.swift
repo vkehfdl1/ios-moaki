@@ -33,7 +33,7 @@ struct KeyboardView: View {
                             viewModel.endBackspacePress()
                         },
                         onLongPressNumber: { number in
-                            viewModel.inputNumber(number)
+                            viewModel.inputLongPressNumber(number)
                         },
                         onGestureStart: { row, column, point in
                             viewModel.gestureStarted(row: row, column: column, at: point)
@@ -100,6 +100,7 @@ class KeyboardViewModel: ObservableObject {
     private var isBackspacePressing = false
     private var backspaceInitialDelayTimer: Timer?
     private var backspaceRepeatTimer: Timer?
+    private var didHandleLongPressNumberInCurrentGesture = false
 
     weak var delegate: KeyboardViewModelDelegate?
 
@@ -151,6 +152,11 @@ class KeyboardViewModel: ObservableObject {
         triggerHapticFeedback()
     }
 
+    func inputLongPressNumber(_ number: String) {
+        didHandleLongPressNumberInCurrentGesture = true
+        inputNumber(number)
+    }
+
     func deleteBackward() {
         let action = composer.deleteBackward()
         if action == .none {
@@ -192,6 +198,7 @@ class KeyboardViewModel: ObservableObject {
     // MARK: - Gesture Handling
 
     func gestureStarted(row: Int, column: Int, at point: CGPoint) {
+        didHandleLongPressNumberInCurrentGesture = false
         activeKey = (row, column)
         gestureStartPoint = point
         gestureAnalyzer.reset()
@@ -210,6 +217,12 @@ class KeyboardViewModel: ObservableObject {
     }
 
     func gestureEnded(row: Int, column: Int) {
+        if didHandleLongPressNumberInCurrentGesture {
+            didHandleLongPressNumberInCurrentGesture = false
+            resetGestureState()
+            return
+        }
+
         // In symbol mode, gesture handling is simpler - just tap
         if isSymbolMode {
             handleSymbolModeTap(row: row, column: column)
@@ -275,6 +288,7 @@ class KeyboardViewModel: ObservableObject {
     /// or lastComposingText to preserve in-progress Hangul composition.
     func resetGestureState() {
         stopBackspaceRepeat()
+        didHandleLongPressNumberInCurrentGesture = false
         activeKey = nil
         gestureStartPoint = nil
         gestureDirections = []
