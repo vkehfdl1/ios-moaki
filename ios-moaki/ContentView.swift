@@ -75,20 +75,39 @@ struct ContentView: View {
 
                 Spacer()
 
-                // Open Settings Button
-                Button(action: openSettings) {
-                    HStack {
-                        Image(systemName: "gear")
-                        Text("설정 열기")
+                // Buttons
+                VStack(spacing: 12) {
+                    NavigationLink {
+                        TutorialContainerView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "graduationcap")
+                            Text("키보드 튜토리얼 시작")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.blue)
+                        )
                     }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.blue)
-                    )
+
+                    Button(action: openSettings) {
+                        HStack {
+                            Image(systemName: "gear")
+                            Text("설정 열기")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.blue, lineWidth: 1.5)
+                        )
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 32)
