@@ -5,8 +5,6 @@ struct FunctionRowView: View {
     let isSymbolMode: Bool
     let onToggleModePressed: () -> Void
     let onCommaPressed: () -> Void
-    let onBackspacePressStart: () -> Void
-    let onBackspacePressEnd: () -> Void
     let onSpacePressed: () -> Void
     let onReturnPressed: () -> Void
 
@@ -23,29 +21,18 @@ struct FunctionRowView: View {
                 ),
                 width: toggleWidth,
                 height: height,
-                action: onToggleModePressed,
-                onPressStart: nil,
-                onPressEnd: nil
+                action: onToggleModePressed
             )
 
             // Comma key (left of space)
             FunctionKeyView(
                 content: AnyView(
-                    Group {
-                        if isSymbolMode {
-                            Image(systemName: "delete.left")
-                                .font(.system(size: 18))
-                        } else {
-                            Text(",")
-                                .font(.system(size: 20))
-                        }
-                    }
+                    Text(",")
+                        .font(.system(size: 20))
                 ),
                 width: commaWidth,
                 height: height,
-                action: isSymbolMode ? {} : onCommaPressed,
-                onPressStart: isSymbolMode ? onBackspacePressStart : nil,
-                onPressEnd: isSymbolMode ? onBackspacePressEnd : nil
+                action: onCommaPressed
             )
 
             // Space bar
@@ -57,9 +44,7 @@ struct FunctionRowView: View {
                 ),
                 width: spaceWidth,
                 height: height,
-                action: onSpacePressed,
-                onPressStart: nil,
-                onPressEnd: nil
+                action: onSpacePressed
             )
 
             // Return button
@@ -70,9 +55,7 @@ struct FunctionRowView: View {
                 ),
                 width: returnWidth,
                 height: height,
-                action: onReturnPressed,
-                onPressStart: nil,
-                onPressEnd: nil
+                action: onReturnPressed
             )
         }
     }
@@ -106,8 +89,6 @@ struct FunctionKeyView: View {
     let width: CGFloat
     let height: CGFloat
     let action: () -> Void
-    let onPressStart: (() -> Void)?
-    let onPressEnd: (() -> Void)?
 
     @State private var isPressed = false
 
@@ -123,30 +104,13 @@ struct FunctionKeyView: View {
                     .onChanged { _ in
                         if !isPressed {
                             isPressed = true
-                            onPressStart?()
                         }
                     }
                     .onEnded { _ in
-                        guard isPressed else { return }
                         isPressed = false
-                        if isPressDriven {
-                            onPressEnd?()
-                        } else {
-                            action()
-                        }
+                        action()
                     }
             )
-            .onDisappear {
-                guard isPressed else { return }
-                isPressed = false
-                if isPressDriven {
-                    onPressEnd?()
-                }
-            }
-    }
-
-    private var isPressDriven: Bool {
-        onPressStart != nil || onPressEnd != nil
     }
 }
 
@@ -159,8 +123,6 @@ struct FunctionKeyView: View {
             isSymbolMode: false,
             onToggleModePressed: { print("Toggle") },
             onCommaPressed: { print("Comma") },
-            onBackspacePressStart: { print("Backspace start") },
-            onBackspacePressEnd: { print("Backspace end") },
             onSpacePressed: { print("Space") },
             onReturnPressed: { print("Return") }
         )
@@ -172,8 +134,6 @@ struct FunctionKeyView: View {
             isSymbolMode: true,
             onToggleModePressed: { print("Toggle") },
             onCommaPressed: { print("Comma") },
-            onBackspacePressStart: { print("Backspace start") },
-            onBackspacePressEnd: { print("Backspace end") },
             onSpacePressed: { print("Space") },
             onReturnPressed: { print("Return") }
         )

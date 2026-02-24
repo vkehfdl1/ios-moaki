@@ -56,12 +56,6 @@ struct KeyboardView: View {
                         onCommaPressed: {
                             viewModel.inputSymbol(",")
                         },
-                        onBackspacePressStart: {
-                            viewModel.beginBackspacePress()
-                        },
-                        onBackspacePressEnd: {
-                            viewModel.endBackspacePress()
-                        },
                         onSpacePressed: {
                             viewModel.inputSpace()
                         },
