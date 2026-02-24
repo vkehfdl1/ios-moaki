@@ -6,8 +6,9 @@ struct KeyView: View {
     let isPressed: Bool
     let previewVowel: Jungseong?
     let longPressNumber: String?
-    let onTap: () -> Void
     let onLongPress: ((String) -> Void)?
+    let onBackspacePressStart: (() -> Void)?
+    let onBackspacePressEnd: (() -> Void)?
     let onGestureStart: (CGPoint) -> Void
     let onGestureMove: (CGPoint) -> Void
     let onGestureEnd: () -> Void
@@ -33,9 +34,15 @@ struct KeyView: View {
                 .onChanged { value in
                     if !isHighlighted {
                         isHighlighted = true
-                        onGestureStart(value.startLocation)
-                        startLongPressTimer()
+                        if isBackspaceKey {
+                            onBackspacePressStart?()
+                        } else {
+                            onGestureStart(value.startLocation)
+                            startLongPressTimer()
+                        }
                     }
+
+                    guard !isBackspaceKey else { return }
 
                     // Cancel long press if user moved significantly (for consonant gesture)
                     let distance = sqrt(pow(value.translation.width, 2) + pow(value.translation.height, 2))
@@ -49,10 +56,17 @@ struct KeyView: View {
                     isHighlighted = false
                     cancelLongPressTimer()
                     hideNumberPopup()
-                    onGestureEnd()
+                    if isBackspaceKey {
+                        onBackspacePressEnd?()
+                    } else {
+                        onGestureEnd()
+                    }
                 }
         )
         .onDisappear {
+            if isHighlighted && isBackspaceKey {
+                onBackspacePressEnd?()
+            }
             cancelLongPressTimer()
             isHighlighted = false
             showNumberPopup = false
@@ -120,6 +134,13 @@ struct KeyView: View {
         return .primary
     }
 
+    private var isBackspaceKey: Bool {
+        if case .backspace = content {
+            return true
+        }
+        return false
+    }
+
     private func startLongPressTimer() {
         guard longPressNumber != nil else { return }
 
@@ -152,8 +173,9 @@ typealias ConsonantKeyView = KeyView
             isPressed: false,
             previewVowel: nil,
             longPressNumber: "4",
-            onTap: {},
             onLongPress: { _ in },
+            onBackspacePressStart: nil,
+            onBackspacePressEnd: nil,
             onGestureStart: { _ in },
             onGestureMove: { _ in },
             onGestureEnd: {}
@@ -165,8 +187,9 @@ typealias ConsonantKeyView = KeyView
             isPressed: true,
             previewVowel: .ㅏ,
             longPressNumber: "7",
-            onTap: {},
             onLongPress: { _ in },
+            onBackspacePressStart: nil,
+            onBackspacePressEnd: nil,
             onGestureStart: { _ in },
             onGestureMove: { _ in },
             onGestureEnd: {}
@@ -178,8 +201,9 @@ typealias ConsonantKeyView = KeyView
             isPressed: false,
             previewVowel: nil,
             longPressNumber: nil,
-            onTap: {},
             onLongPress: nil,
+            onBackspacePressStart: nil,
+            onBackspacePressEnd: nil,
             onGestureStart: { _ in },
             onGestureMove: { _ in },
             onGestureEnd: {}
@@ -191,8 +215,9 @@ typealias ConsonantKeyView = KeyView
             isPressed: false,
             previewVowel: nil,
             longPressNumber: nil,
-            onTap: {},
             onLongPress: nil,
+            onBackspacePressStart: {},
+            onBackspacePressEnd: {},
             onGestureStart: { _ in },
             onGestureMove: { _ in },
             onGestureEnd: {}

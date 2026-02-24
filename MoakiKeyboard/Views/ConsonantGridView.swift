@@ -9,7 +9,8 @@ struct KeyGridView: View {
     let previewVowel: Jungseong?
     let onConsonantTap: (Choseong) -> Void
     let onSymbolTap: (String) -> Void
-    let onBackspace: () -> Void
+    let onBackspacePressStart: () -> Void
+    let onBackspacePressEnd: () -> Void
     let onLongPressNumber: (String) -> Void
     let onGestureStart: (Int, Int, CGPoint) -> Void
     let onGestureMove: (CGPoint) -> Void
@@ -28,9 +29,7 @@ struct KeyGridView: View {
                         let width = KeyboardMetrics.keyWidth(
                             for: column,
                             row: row,
-                            centerKeyWidth: centerKeyWidth,
-                            totalWidth: totalWidth,
-                            isSymbolMode: isSymbolMode
+                            centerKeyWidth: centerKeyWidth
                         )
 
                         KeyView(
@@ -39,11 +38,16 @@ struct KeyGridView: View {
                             isPressed: isActive,
                             previewVowel: isActive ? previewVowel : nil,
                             longPressNumber: longPressNumber,
-                            onTap: {
-                                handleTap(content: content)
-                            },
                             onLongPress: { number in
                                 onLongPressNumber(number)
+                            },
+                            onBackspacePressStart: {
+                                guard case .backspace = content else { return }
+                                onBackspacePressStart()
+                            },
+                            onBackspacePressEnd: {
+                                guard case .backspace = content else { return }
+                                onBackspacePressEnd()
                             },
                             onGestureStart: { point in
                                 onGestureStart(row, column, point)
@@ -58,19 +62,6 @@ struct KeyGridView: View {
                     }
                 }
             }
-        }
-    }
-
-    private func handleTap(content: KeyContent?) {
-        guard let content = content else { return }
-
-        switch content {
-        case .consonant(let choseong):
-            onConsonantTap(choseong)
-        case .symbol(let symbol):
-            onSymbolTap(symbol)
-        case .backspace:
-            onBackspace()
         }
     }
 }
@@ -91,7 +82,8 @@ typealias ConsonantGridView = KeyGridView
             previewVowel: .ㅏ,
             onConsonantTap: { _ in },
             onSymbolTap: { _ in },
-            onBackspace: {},
+            onBackspacePressStart: {},
+            onBackspacePressEnd: {},
             onLongPressNumber: { _ in },
             onGestureStart: { _, _, _ in },
             onGestureMove: { _ in },
@@ -109,7 +101,8 @@ typealias ConsonantGridView = KeyGridView
             previewVowel: nil,
             onConsonantTap: { _ in },
             onSymbolTap: { _ in },
-            onBackspace: {},
+            onBackspacePressStart: {},
+            onBackspacePressEnd: {},
             onLongPressNumber: { _ in },
             onGestureStart: { _, _, _ in },
             onGestureMove: { _ in },

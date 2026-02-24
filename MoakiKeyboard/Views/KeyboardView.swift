@@ -26,8 +26,11 @@ struct KeyboardView: View {
                         onSymbolTap: { symbol in
                             viewModel.inputSymbol(symbol)
                         },
-                        onBackspace: {
-                            viewModel.deleteBackward()
+                        onBackspacePressStart: {
+                            viewModel.beginBackspacePress()
+                        },
+                        onBackspacePressEnd: {
+                            viewModel.endBackspacePress()
                         },
                         onLongPressNumber: { number in
                             viewModel.inputNumber(number)
@@ -52,9 +55,6 @@ struct KeyboardView: View {
                         },
                         onCommaPressed: {
                             viewModel.inputSymbol(",")
-                        },
-                        onBackspacePressed: {
-                            viewModel.deleteBackward()
                         },
                         onSpacePressed: {
                             viewModel.inputSpace()
@@ -95,7 +95,22 @@ class KeyboardViewModel: ObservableObject {
     /// Tracks the last composing text to enable incremental updates
     private var lastComposingText: String = ""
 
+    private let backspaceRepeatInitialDelay: TimeInterval
+    private let backspaceRepeatInterval: TimeInterval
+    private var isBackspacePressing = false
+    private var backspaceInitialDelayTimer: Timer?
+    private var backspaceRepeatTimer: Timer?
+
     weak var delegate: KeyboardViewModelDelegate?
+
+    init(backspaceRepeatInitialDelay: TimeInterval = 0.4, backspaceRepeatInterval: TimeInterval = 0.08) {
+        self.backspaceRepeatInitialDelay = backspaceRepeatInitialDelay
+        self.backspaceRepeatInterval = backspaceRepeatInterval
+    }
+
+    deinit {
+        stopBackspaceRepeat()
+    }
 
     var composingText: String {
         composer.displayText
@@ -104,6 +119,7 @@ class KeyboardViewModel: ObservableObject {
     // MARK: - Mode Toggle
 
     func toggleMode() {
+        stopBackspaceRepeat()
         commitCurrent()
         isSymbolMode.toggle()
         triggerHapticFeedback()
@@ -156,8 +172,21 @@ class KeyboardViewModel: ObservableObject {
     }
 
     func switchKeyboard() {
+        stopBackspaceRepeat()
         commitCurrent()
         delegate?.switchToNextKeyboard()
+    }
+
+    func beginBackspacePress() {
+        guard !isBackspacePressing else { return }
+
+        isBackspacePressing = true
+        deleteBackward()  // Immediate delete on touch-down.
+        startBackspaceRepeat()
+    }
+
+    func endBackspacePress() {
+        stopBackspaceRepeat()
     }
 
     // MARK: - Gesture Handling
@@ -237,6 +266,7 @@ class KeyboardViewModel: ObservableObject {
     func resetComposer() {
         // Reset composer state when text field changes externally
         // (e.g., when user sends a message and the app clears the field)
+        stopBackspaceRepeat()
         lastComposingText = ""
         composer.reset()
     }
@@ -244,6 +274,7 @@ class KeyboardViewModel: ObservableObject {
     /// Resets gesture tracking state only. Intentionally does NOT reset composer
     /// or lastComposingText to preserve in-progress Hangul composition.
     func resetGestureState() {
+        stopBackspaceRepeat()
         activeKey = nil
         gestureStartPoint = nil
         gestureDirections = []
@@ -311,6 +342,33 @@ class KeyboardViewModel: ObservableObject {
 
     private func triggerHapticFeedback() {
         delegate?.triggerHapticFeedback()
+    }
+
+    private func startBackspaceRepeat() {
+        backspaceInitialDelayTimer?.invalidate()
+        backspaceInitialDelayTimer = makeTimer(interval: backspaceRepeatInitialDelay, repeats: false) { [weak self] _ in
+            guard let self, self.isBackspacePressing else { return }
+
+            self.backspaceRepeatTimer?.invalidate()
+            self.backspaceRepeatTimer = self.makeTimer(interval: self.backspaceRepeatInterval, repeats: true) { [weak self] _ in
+                guard let self, self.isBackspacePressing else { return }
+                self.deleteBackward()
+            }
+        }
+    }
+
+    private func stopBackspaceRepeat() {
+        isBackspacePressing = false
+        backspaceInitialDelayTimer?.invalidate()
+        backspaceInitialDelayTimer = nil
+        backspaceRepeatTimer?.invalidate()
+        backspaceRepeatTimer = nil
+    }
+
+    private func makeTimer(interval: TimeInterval, repeats: Bool, handler: @escaping (Timer) -> Void) -> Timer {
+        let timer = Timer(timeInterval: interval, repeats: repeats, block: handler)
+        RunLoop.main.add(timer, forMode: .common)
+        return timer
     }
 }
 

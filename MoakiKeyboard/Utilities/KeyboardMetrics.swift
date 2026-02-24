@@ -32,9 +32,6 @@ enum KeyboardMetrics {
     static let directionChangeThreshold: CGFloat = 15 // Distance before direction can change
     static let gestureTimeout: TimeInterval = 0.5    // Max time between direction changes
 
-    // Symbol keypad uses a simple 3-column layout.
-    static let symbolColumns = 3
-
     // Calculate action key width (backspace/return) based on total width
     static func actionKeyWidth(for totalWidth: CGFloat) -> CGFloat {
         return totalWidth * actionKeyWidthRatio
@@ -48,13 +45,6 @@ enum KeyboardMetrics {
         return availableWidth / (symbolWidthRatio * 2 + 5)
     }
 
-    // Calculate symbol keypad key width for 3 columns.
-    static func symbolKeyWidth(for totalWidth: CGFloat) -> CGFloat {
-        let spacing = keySpacing * CGFloat(symbolColumns + 1)  // gaps + edges
-        let availableWidth = totalWidth - spacing
-        return availableWidth / CGFloat(symbolColumns)
-    }
-
     // Calculate key height based on available space
     static func keyHeight(for totalHeight: CGFloat) -> CGFloat {
         let availableHeight = totalHeight - functionRowHeight - keySpacing * CGFloat(gridRows + 2)
@@ -62,11 +52,7 @@ enum KeyboardMetrics {
     }
 
     // Get key width for specific column and row
-    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat, totalWidth: CGFloat, isSymbolMode: Bool) -> CGFloat {
-        if isSymbolMode {
-            return symbolKeyWidth(for: totalWidth)
-        }
-
+    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat) -> CGFloat {
         let sideWidth = centerKeyWidth * symbolWidthRatio
 
         // Row 3: backspace (col 5) fills remaining space to match row 0-2 width
@@ -109,16 +95,18 @@ enum KeyboardMetrics {
         [.symbol("*"), .consonant(.ㅋ), .consonant(.ㅌ), .consonant(.ㅊ), .consonant(.ㅍ), .backspace],  // 6 columns
     ]
 
-    // Symbol/number mode keypad layout.
-    // 1 2 3
-    // 4 5 6
-    // 7 8 9
-    // # 0 *
+    // Symbol mode layout.
+    // Same 7/7/7/6 geometry as Korean layout, values only are different.
+    // Digits are centered:
+    // row 0: 1 2 3
+    // row 1: 4 5 6
+    // row 2: 7 8 9
+    // row 3: * 0 #
     static let symbolLayout: [[KeyContent]] = [
-        [.symbol("1"), .symbol("2"), .symbol("3")],
-        [.symbol("4"), .symbol("5"), .symbol("6")],
-        [.symbol("7"), .symbol("8"), .symbol("9")],
-        [.symbol("#"), .symbol("0"), .symbol("*")],
+        [.symbol("~"), .symbol("!"), .symbol("1"), .symbol("2"), .symbol("3"), .symbol("@"), .symbol("$")],
+        [.symbol("%"), .symbol("^"), .symbol("4"), .symbol("5"), .symbol("6"), .symbol("&"), .symbol("(")],
+        [.symbol("="), .symbol("-"), .symbol("7"), .symbol("8"), .symbol("9"), .symbol("+"), .symbol(")")],
+        [.symbol("/"), .symbol("?"), .symbol("*"), .symbol("0"), .symbol("#"), .backspace],
     ]
 
     // Long press number mapping for Korean mode

@@ -5,7 +5,6 @@ struct FunctionRowView: View {
     let isSymbolMode: Bool
     let onToggleModePressed: () -> Void
     let onCommaPressed: () -> Void
-    let onBackspacePressed: () -> Void
     let onSpacePressed: () -> Void
     let onReturnPressed: () -> Void
 
@@ -28,19 +27,12 @@ struct FunctionRowView: View {
             // Comma key (left of space)
             FunctionKeyView(
                 content: AnyView(
-                    Group {
-                        if isSymbolMode {
-                            Image(systemName: "delete.left")
-                                .font(.system(size: 18))
-                        } else {
-                            Text(",")
-                                .font(.system(size: 20))
-                        }
-                    }
+                    Text(",")
+                        .font(.system(size: 20))
                 ),
                 width: commaWidth,
                 height: height,
-                action: isSymbolMode ? onBackspacePressed : onCommaPressed
+                action: onCommaPressed
             )
 
             // Space bar
@@ -131,7 +123,6 @@ struct FunctionKeyView: View {
             isSymbolMode: false,
             onToggleModePressed: { print("Toggle") },
             onCommaPressed: { print("Comma") },
-            onBackspacePressed: { print("Backspace") },
             onSpacePressed: { print("Space") },
             onReturnPressed: { print("Return") }
         )
@@ -143,7 +134,6 @@ struct FunctionKeyView: View {
             isSymbolMode: true,
             onToggleModePressed: { print("Toggle") },
             onCommaPressed: { print("Comma") },
-            onBackspacePressed: { print("Backspace") },
             onSpacePressed: { print("Space") },
             onReturnPressed: { print("Return") }
         )
