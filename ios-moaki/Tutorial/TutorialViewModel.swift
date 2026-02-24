@@ -21,9 +21,14 @@ final class TutorialViewModel: ObservableObject {
     }
 
     var stages: [TutorialStage] { TutorialContent.stages }
-    var currentStage: TutorialStage { stages[currentStageIndex] }
     var isWelcome: Bool { currentStageIndex == 0 }
     var isCompletion: Bool { currentStageIndex >= stages.count }
+
+    var currentStage: TutorialStage {
+        guard currentStageIndex < stages.count else { return stages.last! }
+        return stages[currentStageIndex]
+    }
+
     var hasPractice: Bool { !currentStage.practiceLines.isEmpty }
 
     var currentTargetLine: String {

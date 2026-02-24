@@ -53,7 +53,7 @@ Drag on a consonant key to input a vowel. Left diagonals (↖, ↙) are normaliz
 | →←→← | ㅒ (yae) |
 | ←→ | ㅔ (e) |
 | ←→←→ | ㅖ (ye) |
-| ↘↗ or ↘↑ | ㅢ (ui) |
+| ↘↖ or ↘↑ | ㅢ (ui) |
 
 ## Keyboard Layout
 

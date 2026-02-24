@@ -39,8 +39,8 @@ struct VowelPattern {
         VowelPattern(.ㅖ, .left, .right, .left, .right),  // ←→←→
 
         // Eu-i (ㅡ + ㅣ)
-        VowelPattern(.ㅢ, .downRight, .upRight),          // ↘↗ (ㅡ + ㅣ 대각선)
-        VowelPattern(.ㅢ, .downRight, .up),               // ↘↑ (ㅡ + 수직 위)
+        VowelPattern(.ㅢ, .downRight, .upLeft),           // ↘↖ (오른쪽아래-왼쪽위)
+        VowelPattern(.ㅢ, .downRight, .up),               // ↘↑ (오른쪽아래-위)
     ]
 
     // Build a trie for efficient pattern matching

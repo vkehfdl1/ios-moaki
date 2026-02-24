@@ -146,10 +146,10 @@ final class VowelResolverTests: XCTestCase {
     // MARK: - Special Vowels
 
     func testSpecialVowels() {
-        // ㅢ = ↘↗ (ㅡ + ㅣ 대각선)
-        XCTAssertEqual(resolver.resolve(directions: [.downRight, .upRight]).vowel, .ㅢ)
+        // ㅢ = ↘↖ (오른쪽아래-왼쪽위)
+        XCTAssertEqual(resolver.resolve(directions: [.downRight, .upLeft]).vowel, .ㅢ)
 
-        // ㅢ = ↘↑ (ㅡ + 수직 위)
+        // ㅢ = ↘↑ (오른쪽아래-위)
         XCTAssertEqual(resolver.resolve(directions: [.downRight, .up]).vowel, .ㅢ)
     }
 

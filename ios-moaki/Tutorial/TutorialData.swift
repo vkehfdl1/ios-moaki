@@ -160,9 +160,9 @@ enum TutorialContent {
         TutorialStage(
             id: 8,
             title: "복합 모음 (5)",
-            description: "오른쪽 대각선을 아래→위로 슬라이드하면 ㅢ가 됩니다.",
+            description: "오른쪽 아래로 슬라이드한 뒤 왼쪽 위로 올리면 ㅢ가 됩니다.",
             vowelGestures: [
-                VowelGesture(vowel: "ㅢ", directions: ["↘", "↗"], label: "오른쪽아래-오른쪽위"),
+                VowelGesture(vowel: "ㅢ", directions: ["↘", "↖"], label: "오른쪽아래-왼쪽위"),
             ],
             practiceLines: [
                 "긔늬듸릐믜",
