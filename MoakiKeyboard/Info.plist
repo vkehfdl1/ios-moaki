@@ -10,8 +10,8 @@
 			<false/>
 			<key>PrefersRightToLeft</key>
 			<false/>
-			<key>PrimaryLanguage</key>
-			<string>en-US</string>
+		<key>PrimaryLanguage</key>
+		<string>ko-KR</string>
 			<key>RequestsOpenAccess</key>
 			<false/>
 		</dict>
