@@ -8,6 +8,8 @@ class KeyboardSettings: ObservableObject {
 
     private enum Keys {
         static let showGesturePreview = "showGesturePreview"
+        static let useGridRecognition = "useGridRecognition"
+        static let enableLongPressNumber = "enableLongPressNumber"
     }
 
     /// 제스처 프리뷰 표시 여부 (기본값: false)
@@ -17,13 +19,33 @@ class KeyboardSettings: ObservableObject {
         }
     }
 
+    /// 격자(축 분해) 기반 제스처 인식 사용 여부 (기본값: true)
+    /// ⚠️ 키보드 익스텐션과 메인 앱은 별도 프로세스라, 인앱 토글로 제어하려면
+    /// App Group 공유 UserDefaults(suiteName:)가 필요함. 지금은 익스텐션 자체 기본값을 사용.
+    @Published var useGridRecognition: Bool {
+        didSet {
+            defaults.set(useGridRecognition, forKey: Keys.useGridRecognition)
+        }
+    }
+
+    /// 자음 길게 누르기 → 숫자 입력 (기본값: false — 누르면 뜨는 모음 힌트/제스처와 충돌해서 끔)
+    @Published var enableLongPressNumber: Bool {
+        didSet {
+            defaults.set(enableLongPressNumber, forKey: Keys.enableLongPressNumber)
+        }
+    }
+
     private init() {
         // 기본값 등록
         defaults.register(defaults: [
-            Keys.showGesturePreview: false
+            Keys.showGesturePreview: false,
+            Keys.useGridRecognition: true,
+            Keys.enableLongPressNumber: false
         ])
 
         // 저장된 값 로드
         self.showGesturePreview = defaults.bool(forKey: Keys.showGesturePreview)
+        self.useGridRecognition = defaults.bool(forKey: Keys.useGridRecognition)
+        self.enableLongPressNumber = defaults.bool(forKey: Keys.enableLongPressNumber)
     }
 }

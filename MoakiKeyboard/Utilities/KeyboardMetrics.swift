@@ -26,11 +26,19 @@ enum KeyboardMetrics {
     // Function row
     static let functionRowHeight: CGFloat = 44
 
+    // Suggestion bar (단어 예측 후보 바)
+    static let suggestionBarHeight: CGFloat = 40
+
     // Gesture thresholds
     static let gestureThreshold: CGFloat = 20        // Minimum distance to register direction
     static let reversalThreshold: CGFloat = 10       // Lower threshold for opposite direction reversals
     static let directionChangeThreshold: CGFloat = 15 // Distance before direction can change
     static let gestureTimeout: TimeInterval = 0.5    // Max time between direction changes
+
+    /// Grid recognizer: minor/major axis ratio required to treat a stroke as a
+    /// diagonal (↗ ↘ ↖ ↙). Higher = cardinals (ㅏㅓㅗㅜ) get more forgiving and
+    /// diagonals (ㅣ/ㅡ) require a cleaner ~45° drag. ~0.6 ≈ 31° from the axis.
+    static let diagonalRatio: CGFloat = 0.6
 
     // Calculate action key width (backspace/return) based on total width
     static func actionKeyWidth(for totalWidth: CGFloat) -> CGFloat {
@@ -47,7 +55,7 @@ enum KeyboardMetrics {
 
     // Calculate key height based on available space
     static func keyHeight(for totalHeight: CGFloat) -> CGFloat {
-        let availableHeight = totalHeight - functionRowHeight - keySpacing * CGFloat(gridRows + 2)
+        let availableHeight = totalHeight - functionRowHeight - suggestionBarHeight - keySpacing * CGFloat(gridRows + 2)
         return availableHeight / CGFloat(gridRows)
     }
 

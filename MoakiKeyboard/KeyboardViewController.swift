@@ -19,7 +19,7 @@ class KeyboardViewController: UIInputViewController {
             toItem: nil,
             attribute: .notAnAttribute,
             multiplier: 1.0,
-            constant: 260
+            constant: 352
         )
         heightConstraint.priority = .required
         view.addConstraint(heightConstraint)
@@ -32,7 +32,7 @@ class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        heightConstraint?.constant = 260
+        heightConstraint?.constant = 352
         heightConstraint?.isActive = true
         view.setNeedsLayout()
         view.layoutIfNeeded()
@@ -127,6 +127,10 @@ extension KeyboardViewController: KeyboardViewModelDelegate {
 
     func switchToNextKeyboard() {
         advanceToNextInputMode()
+    }
+
+    var documentContextBeforeInput: String? {
+        textDocumentProxy.documentContextBeforeInput
     }
 
     func triggerHapticFeedback() {

@@ -5,6 +5,8 @@ struct KeyView: View {
     let keySize: CGSize
     let isPressed: Bool
     let previewVowel: Jungseong?
+    var hintOptions: [VowelOption] = []
+    var hintAnchor: CGPoint? = nil
     let longPressNumber: String?
     let onLongPress: ((String) -> Void)?
     let onBackspacePressStart: (() -> Void)?
@@ -28,6 +30,7 @@ struct KeyView: View {
             keyLabel
         }
         .frame(width: keySize.width, height: keySize.height)
+        .overlay(vowelHintsOverlay)
         .overlay(numberPopupOverlay, alignment: .top)
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -119,14 +122,50 @@ struct KeyView: View {
         }
     }
 
+    // MARK: - Vowel direction hints (composed syllables; progressive while dragging)
+
+    @ViewBuilder
+    private var vowelHintsOverlay: some View {
+        if isPressed, case .consonant(let cho) = content, !hintOptions.isEmpty {
+            let cellW = keySize.width + KeyboardMetrics.keySpacing
+            let cellH = keySize.height + KeyboardMetrics.keySpacing
+            let center = CGPoint(x: keySize.width / 2, y: keySize.height / 2)
+            // Anchor on the grid cell currently under the finger (the consonant key itself
+            // until a stroke moves away), snapped cell-to-cell so it never drifts. Each hint
+            // then sits one cell over in its next-stroke direction — exactly where the finger
+            // must move to select that vowel — so position matches the gesture logic.
+            let raw = hintAnchor ?? center
+            let col = ((raw.x - center.x) / cellW).rounded()
+            let row = ((raw.y - center.y) / cellH).rounded()
+            let anchor = CGPoint(x: center.x + col * cellW, y: center.y + row * cellH)
+            ZStack {
+                ForEach(hintOptions, id: \.direction) { option in
+                    let v = option.direction.unitVector
+                    Text(String(HangulConstants.composeSyllable(choseong: cho, jungseong: option.vowel)))
+                        .font(.system(size: keySize.height * 0.4, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: keySize.width, height: keySize.height)
+                        .background(
+                            RoundedRectangle(cornerRadius: KeyboardMetrics.keyCornerRadius)
+                                .fill(Color(red: 0.282, green: 0.651, blue: 0.635).opacity(0.92))
+                                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                        )
+                        .position(x: anchor.x + v.dx * cellW,
+                                  y: anchor.y + v.dy * cellH)
+                }
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
     private var backgroundColor: Color {
         switch content {
         case .backspace:
-            return isPressed || isHighlighted ? Color(.systemGray3) : Color(.systemGray5)
+            return isPressed || isHighlighted ? Color(.systemGray4) : Color(.systemGray6)
         case .symbol:
-            return isPressed || isHighlighted ? Color(.systemGray3) : Color(.systemGray5)
+            return isPressed || isHighlighted ? Color(.systemGray4) : Color(.systemGray6)
         case .consonant:
-            return isPressed || isHighlighted ? Color(.systemGray4) : Color(.secondarySystemBackground)
+            return isPressed || isHighlighted ? Color(.systemGray5) : Color(.systemBackground)
         }
     }
 
@@ -142,7 +181,7 @@ struct KeyView: View {
     }
 
     private func startLongPressTimer() {
-        guard longPressNumber != nil else { return }
+        guard KeyboardSettings.shared.enableLongPressNumber, longPressNumber != nil else { return }
 
         longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
             showNumberPopup = true

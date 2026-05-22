@@ -13,7 +13,7 @@ struct ContentView: View {
             VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 8) {
-                    Text("모아키")
+                    Text("영일키")
                         .font(.system(size: 48, weight: .bold))
 
                     Text("Moaki Korean Keyboard")

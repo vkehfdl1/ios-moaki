@@ -7,6 +7,8 @@ struct KeyGridView: View {
     let isSymbolMode: Bool
     let activeKey: (row: Int, column: Int)?
     let previewVowel: Jungseong?
+    var hintOptions: [VowelOption] = []
+    var hintAnchor: CGPoint? = nil
     let onConsonantTap: (Choseong) -> Void
     let onSymbolTap: (String) -> Void
     let onBackspacePressStart: () -> Void
@@ -37,6 +39,8 @@ struct KeyGridView: View {
                             keySize: CGSize(width: width, height: keyHeight),
                             isPressed: isActive,
                             previewVowel: isActive ? previewVowel : nil,
+                            hintOptions: isActive ? hintOptions : [],
+                            hintAnchor: isActive ? hintAnchor : nil,
                             longPressNumber: longPressNumber,
                             onLongPress: { number in
                                 onLongPressNumber(number)
@@ -59,8 +63,10 @@ struct KeyGridView: View {
                                 onGestureEnd(row, column)
                             }
                         )
+                        .zIndex(isActive ? 1 : 0)
                     }
                 }
+                .zIndex(activeKey?.row == row ? 1 : 0)
             }
         }
     }
