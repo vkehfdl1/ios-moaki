@@ -137,6 +137,7 @@ class KeyboardViewModel: ObservableObject {
     @Published var hintAnchor: CGPoint?
     @Published var showSnippets = false
     @Published var snippets: [String] = []
+    @Published var suggestions: [String] = []
 
     private let composer = HangulComposer()
     private var gestureAnalyzer: GestureRecognizing = GestureAnalyzer()
@@ -474,10 +475,7 @@ class KeyboardViewModel: ObservableObject {
     private func updateSuggestions() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            guard let before = self.delegate?.documentContextBeforeInput, !before.isEmpty else {
-                self.suggestions = []
-                return
-            }
+            let before = self.delegate?.documentContextBeforeInput ?? ""
             let prefix = before.components(separatedBy: Self.wordSeparators).last ?? ""
             self.suggestions = prefix.isEmpty ? [] : WordStore.shared.suggestions(prefix: prefix)
         }
