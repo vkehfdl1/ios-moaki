@@ -4,9 +4,12 @@ struct KeyGridView: View {
     let centerKeyWidth: CGFloat
     let keyHeight: CGFloat
     let totalWidth: CGFloat
-    let isSymbolMode: Bool
+    let mode: KeyboardMode
     let activeKey: (row: Int, column: Int)?
     let previewVowel: Jungseong?
+    var hintOptions: [VowelOption] = []
+    var hintAnchor: CGPoint? = nil
+    var isShiftEnabled: Bool = false  // English: forwarded to each key for label/icon state
     let onConsonantTap: (Choseong) -> Void
     let onSymbolTap: (String) -> Void
     let onBackspacePressStart: () -> Void
@@ -17,19 +20,26 @@ struct KeyGridView: View {
     let onGestureEnd: (Int, Int) -> Void
 
     var body: some View {
+        // English mode uses a uniform key width; Korean/symbol use the center/side split.
+        let unitWidth = mode == .english
+            ? KeyboardMetrics.englishKeyWidth(for: totalWidth)
+            : centerKeyWidth
+
         VStack(spacing: KeyboardMetrics.keySpacing) {
-            ForEach(0..<KeyboardMetrics.gridRows, id: \.self) { row in
+            // Iterate the active layout's row count — English is 3 rows, Korean/symbol are 4.
+            ForEach(0..<KeyboardMetrics.rowCount(for: mode), id: \.self) { row in
                 HStack(spacing: KeyboardMetrics.keySpacing) {
-                    let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode)
+                    let columnCount = KeyboardMetrics.columnCount(for: row, mode: mode)
 
                     ForEach(0..<columnCount, id: \.self) { column in
-                        let content = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode)
+                        let content = KeyboardMetrics.keyContent(at: row, column: column, mode: mode)
                         let isActive = activeKey?.row == row && activeKey?.column == column
-                        let longPressNumber = isSymbolMode ? nil : KeyboardMetrics.longPressNumber(at: row, column: column)
+                        let longPressNumber = mode == .korean ? KeyboardMetrics.longPressNumber(at: row, column: column) : nil
                         let width = KeyboardMetrics.keyWidth(
                             for: column,
                             row: row,
-                            centerKeyWidth: centerKeyWidth
+                            centerKeyWidth: unitWidth,
+                            mode: mode
                         )
 
                         KeyView(
@@ -37,7 +47,10 @@ struct KeyGridView: View {
                             keySize: CGSize(width: width, height: keyHeight),
                             isPressed: isActive,
                             previewVowel: isActive ? previewVowel : nil,
+                            hintOptions: isActive ? hintOptions : [],
+                            hintAnchor: isActive ? hintAnchor : nil,
                             longPressNumber: longPressNumber,
+                            isShiftEnabled: mode == .english && isShiftEnabled,
                             onLongPress: { number in
                                 onLongPressNumber(number)
                             },
@@ -59,8 +72,10 @@ struct KeyGridView: View {
                                 onGestureEnd(row, column)
                             }
                         )
+                        .zIndex(isActive ? 1 : 0)
                     }
                 }
+                .zIndex(activeKey?.row == row ? 1 : 0)
             }
         }
     }
@@ -77,7 +92,7 @@ typealias ConsonantGridView = KeyGridView
             centerKeyWidth: 45,
             keyHeight: 50,
             totalWidth: 350,
-            isSymbolMode: false,
+            mode: .korean,
             activeKey: (1, 2),
             previewVowel: .ㅏ,
             onConsonantTap: { _ in },
@@ -90,13 +105,13 @@ typealias ConsonantGridView = KeyGridView
             onGestureEnd: { _, _ in }
         )
 
-        Text("Symbol Mode")
+        Text("English Mode")
             .font(.headline)
         KeyGridView(
             centerKeyWidth: 45,
             keyHeight: 50,
             totalWidth: 350,
-            isSymbolMode: true,
+            mode: .english,
             activeKey: nil,
             previewVowel: nil,
             onConsonantTap: { _ in },

@@ -10,12 +10,12 @@ struct VowelPattern {
     }
 
     static let allPatterns: [VowelPattern] = [
-        // Basic vowels (왼쪽 대각선만 정규화: ↖→↑, ↙→↓)
+        // Basic vowels (↖→↑만 정규화. 구분 대각선: ↗=ㅣ, ↙=ㅡ)
         VowelPattern(.ㅗ, .up),                           // ↑ (↖도 정규화로 처리됨)
-        VowelPattern(.ㅜ, .down),                         // ↓ (↙도 정규화로 처리됨)
+        VowelPattern(.ㅜ, .down),                         // ↓
         VowelPattern(.ㅏ, .right),                        // →
         VowelPattern(.ㅓ, .left),                         // ←
-        VowelPattern(.ㅡ, .downRight),                    // ↘ → ㅡ
+        VowelPattern(.ㅡ, .downLeft),                     // ↙ → ㅡ
         VowelPattern(.ㅣ, .upRight),                      // ↗ → ㅣ
 
         // Y-vowels (triple direction)
@@ -41,6 +41,11 @@ struct VowelPattern {
         // Eu-i (ㅡ + ㅣ)
         VowelPattern(.ㅢ, .downRight, .upLeft),           // ↘↖ (오른쪽아래-왼쪽위)
         VowelPattern(.ㅢ, .downRight, .up),               // ↘↑ (오른쪽아래-위)
+        VowelPattern(.ㅢ, .downLeft, .up),                // ↙↑ — ㅡ 긋고 ㅣ로 꺾기 (↗/↖도 정규화로 ↑가 됨)
+
+        // 즉시 보정 (떼기 전 ㅏ↔ㅣ): 인접 단모음이 잘못 나왔을 때 이어서 정정
+        VowelPattern(.ㅣ, .right, .up),                   // ㅏ(→) 뒤 ↑로 올리면 → ㅣ
+        VowelPattern(.ㅏ, .upRight, .right),              // ㅣ(↗) 뒤 →로 그으면 → ㅏ
     ]
 
     // Build a trie for efficient pattern matching
@@ -110,5 +115,16 @@ class PatternTrie {
         }
 
         return MatchResult(vowel: nil, consumedCount: 0, hasLongerMatch: !current.children.isEmpty)
+    }
+
+    /// Valid next stroke directions from the node reached by `directions`,
+    /// each paired with the vowel completed by that stroke (nil if only a prefix).
+    func continuations(_ directions: [GestureDirection]) -> [(direction: GestureDirection, vowel: Jungseong?)] {
+        var current = root
+        for direction in directions {
+            guard let next = current.children[direction] else { return [] }
+            current = next
+        }
+        return current.children.map { (direction: $0.key, vowel: $0.value.vowel) }
     }
 }

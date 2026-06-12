@@ -1,5 +1,11 @@
 import Foundation
 
+/// A reachable next vowel and the stroke direction to get it (for on-key hints).
+struct VowelOption: Hashable {
+    let direction: GestureDirection
+    let vowel: Jungseong
+}
+
 class VowelResolver {
     private let patternTrie = VowelPattern.patternTrie
 
@@ -33,8 +39,19 @@ class VowelResolver {
         return match.vowel != nil || match.hasLongerMatch
     }
 
+    /// Reachable vowels from the current path: for each valid next stroke, the
+    /// vowel you'd get by stopping after it. Drives the progressive on-key hints.
+    /// Empty `directions` returns the single-stroke vowels (initial hints).
+    func nextOptions(directions: [GestureDirection]) -> [VowelOption] {
+        let normalized = normalizeForMatching(directions)
+        return patternTrie.continuations(normalized).compactMap { item in
+            guard let vowel = item.vowel else { return nil }
+            return VowelOption(direction: item.direction, vowel: vowel)
+        }
+    }
+
     /// Normalization rules:
-    /// 1. First stroke keeps 8-direction intent, except ↖/↙ are canonicalized to ↑/↓.
+    /// 1. First stroke keeps 8-direction intent, except ↖ is canonicalized to ↑.
     /// 2. From the second stroke onward, diagonals are mapped to a single cardinal axis.
     /// 3. Consecutive identical directions collapse into one stroke.
     private func normalizeForMatching(_ directions: [GestureDirection]) -> [GestureDirection] {
@@ -64,8 +81,6 @@ class VowelResolver {
         switch direction {
         case .upLeft:
             return .up
-        case .downLeft:
-            return .down
         default:
             return direction
         }

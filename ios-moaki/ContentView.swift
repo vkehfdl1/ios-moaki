@@ -13,7 +13,7 @@ struct ContentView: View {
             VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 8) {
-                    Text("모아키")
+                    Text("영일키")
                         .font(.system(size: 48, weight: .bold))
 
                     Text("Moaki Korean Keyboard")
@@ -91,6 +91,23 @@ struct ContentView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(Color.blue)
+                        )
+                    }
+
+                    NavigationLink {
+                        FallingWordsGameView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "gamecontroller")
+                            Text("연습 게임")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(red: 0.282, green: 0.651, blue: 0.635))
                         )
                     }
 

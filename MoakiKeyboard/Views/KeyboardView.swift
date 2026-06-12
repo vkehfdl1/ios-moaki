@@ -12,14 +12,23 @@ struct KeyboardView: View {
 
             ZStack {
                 VStack(spacing: KeyboardMetrics.keySpacing) {
-                    // Key grid (consonants or symbols based on mode)
+                    // Word prediction suggestions (top bar)
+                    SuggestionBarView(
+                        suggestions: viewModel.suggestions,
+                        onSelect: { viewModel.selectSuggestion($0) }
+                    )
+
+                    // Key grid (consonants, symbols, or letters based on mode)
                     KeyGridView(
                         centerKeyWidth: centerKeyWidth,
                         keyHeight: keyHeight,
                         totalWidth: geometry.size.width,
-                        isSymbolMode: viewModel.isSymbolMode,
+                        mode: viewModel.mode,
                         activeKey: viewModel.activeKey,
                         previewVowel: viewModel.previewVowel,
+                        hintOptions: viewModel.hintOptions,
+                        hintAnchor: viewModel.hintAnchor,
+                        isShiftEnabled: viewModel.isShiftEnabled,
                         onConsonantTap: { consonant in
                             viewModel.inputConsonant(consonant)
                         },
@@ -49,9 +58,9 @@ struct KeyboardView: View {
                     // Function row
                     FunctionRowView(
                         totalWidth: geometry.size.width,
-                        isSymbolMode: viewModel.isSymbolMode,
-                        onToggleModePressed: {
-                            viewModel.toggleMode()
+                        mode: viewModel.mode,
+                        onSwitchMode: { newMode in
+                            viewModel.switchMode(to: newMode)
                         },
                         onCommaPressed: {
                             viewModel.inputSymbol(",")
@@ -61,17 +70,55 @@ struct KeyboardView: View {
                         },
                         onReturnPressed: {
                             viewModel.inputReturn()
+                        },
+                        onSnippetPressed: {
+                            viewModel.toggleSnippets()
                         }
                     )
                 }
                 .padding(KeyboardMetrics.keySpacing)
 
                 // Gesture overlay (only shown when enabled and in Korean mode)
-                if settings.showGesturePreview && !viewModel.isSymbolMode {
+                if settings.showGesturePreview && viewModel.mode == .korean {
                     GestureOverlayView(
                         directions: viewModel.gestureDirections,
                         startPoint: viewModel.gestureStartPoint,
                         currentVowel: viewModel.previewVowel
+                    )
+                }
+
+                // Live syllable preview: shows the consonant+vowel being typed,
+                // large at top-center, so the user can correct before lifting.
+                if viewModel.mode == .korean,
+                   let active = viewModel.activeKey,
+                   let cho = KeyboardMetrics.consonant(at: active.row, column: active.column) {
+                    let preview: Character = viewModel.previewVowel
+                        .map { HangulConstants.composeSyllable(choseong: cho, jungseong: $0) }
+                        ?? cho.compatibilityCharacter
+                    VStack {
+                        Text(String(preview))
+                            .font(.system(size: 60, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(minWidth: 92, minHeight: 92)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18)
+                                    .fill(Color.black.opacity(0.72))
+                                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                            )
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                }
+
+                // 상용어 패널 (키보드 영역 덮는 오버레이)
+                if viewModel.showSnippets {
+                    SnippetPanelView(
+                        snippets: viewModel.snippets,
+                        maxCount: SnippetStore.shared.maxCount,
+                        onInsert: { viewModel.insertSnippet($0) },
+                        onAdd: { viewModel.addCurrentLineAsSnippet() },
+                        onRemove: { viewModel.removeSnippet(at: $0) },
+                        onClose: { viewModel.showSnippets = false }
                     )
                 }
             }
@@ -86,10 +133,17 @@ class KeyboardViewModel: ObservableObject {
     @Published var previewVowel: Jungseong?
     @Published var gestureDirections: [GestureDirection] = []
     @Published var gestureStartPoint: CGPoint?
-    @Published var isSymbolMode: Bool = false
+    @Published var mode: KeyboardMode = .korean
+    @Published var hintOptions: [VowelOption] = []
+    @Published var hintAnchor: CGPoint?
+    @Published var showSnippets = false
+    @Published var snippets: [String] = []
+    @Published var suggestions: [String] = []
+    /// English mode: one-shot shift. Tap shift, next letter is uppercase, then auto-resets.
+    @Published var isShiftEnabled = false
 
     private let composer = HangulComposer()
-    private let gestureAnalyzer = GestureAnalyzer()
+    private var gestureAnalyzer: GestureRecognizing = GestureAnalyzer()
     private let vowelResolver = VowelResolver()
 
     /// Tracks the last composing text to enable incremental updates
@@ -119,10 +173,12 @@ class KeyboardViewModel: ObservableObject {
 
     // MARK: - Mode Toggle
 
-    func toggleMode() {
+    func switchMode(to newMode: KeyboardMode) {
+        guard newMode != mode else { return }
         stopBackspaceRepeat()
         commitCurrent()
-        isSymbolMode.toggle()
+        mode = newMode
+        isShiftEnabled = false  // Don't carry English shift latch into other modes.
         triggerHapticFeedback()
     }
 
@@ -141,8 +197,18 @@ class KeyboardViewModel: ObservableObject {
     }
 
     func inputSymbol(_ symbol: String) {
+        learnCurrentWord()
         commitCurrent()
         delegate?.insertText(symbol)
+        updateSuggestions()
+        triggerHapticFeedback()
+    }
+
+    /// English letters: plain insert, no word-boundary learning (letters aren't separators).
+    func inputLetter(_ letter: String) {
+        commitCurrent()
+        delegate?.insertText(letter)
+        updateSuggestions()
         triggerHapticFeedback()
     }
 
@@ -161,6 +227,7 @@ class KeyboardViewModel: ObservableObject {
         let action = composer.deleteBackward()
         if action == .none {
             delegate?.deleteBackward()
+            updateSuggestions()
         } else {
             handleComposerAction(action)
         }
@@ -168,12 +235,16 @@ class KeyboardViewModel: ObservableObject {
     }
 
     func inputSpace() {
+        learnCurrentWord()
         commitAndInsert(" ")
+        updateSuggestions()
         triggerHapticFeedback()
     }
 
     func inputReturn() {
+        learnCurrentWord()
         commitAndInsert("\n")
+        updateSuggestions()
         triggerHapticFeedback()
     }
 
@@ -201,10 +272,16 @@ class KeyboardViewModel: ObservableObject {
         didHandleLongPressNumberInCurrentGesture = false
         activeKey = (row, column)
         gestureStartPoint = point
+        // Pick the recognizer per gesture so a settings change applies immediately.
+        gestureAnalyzer = KeyboardSettings.shared.useGridRecognition
+            ? GridGestureAnalyzer()
+            : GestureAnalyzer()
         gestureAnalyzer.reset()
         gestureAnalyzer.addPoint(point)
         gestureDirections = []
         previewVowel = nil
+        hintOptions = mode == .korean ? vowelResolver.nextOptions(directions: []) : []
+        hintAnchor = nil
     }
 
     func gestureMoved(to point: CGPoint) {
@@ -212,8 +289,15 @@ class KeyboardViewModel: ObservableObject {
         let directions = gestureAnalyzer.getDirections()
         gestureDirections = directions
 
+        guard mode == .korean else { return }
+
         // Update preview vowel (only meaningful for consonant keys)
         previewVowel = vowelResolver.peekVowel(directions: directions)
+
+        // Initial vowels anchor at the key; once a stroke begins the follow-on
+        // vowels (ㅐ ㅑ …) anchor at the finger so they appear around it.
+        hintOptions = vowelResolver.nextOptions(directions: directions)
+        hintAnchor = directions.isEmpty ? nil : point
     }
 
     func gestureEnded(row: Int, column: Int) {
@@ -223,33 +307,58 @@ class KeyboardViewModel: ObservableObject {
             return
         }
 
-        // In symbol mode, gesture handling is simpler - just tap
-        if isSymbolMode {
-            handleSymbolModeTap(row: row, column: column)
-        } else {
+        switch mode {
+        case .korean:
             handleKoreanModeGesture(row: row, column: column)
+        case .symbol:
+            handleSymbolModeTap(row: row, column: column)
+        case .english:
+            handleEnglishModeGesture(row: row, column: column)
         }
 
         resetGestureState()
     }
 
     private func handleSymbolModeTap(row: Int, column: Int) {
-        guard let content = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: true) else { return }
+        guard let content = KeyboardMetrics.keyContent(at: row, column: column, mode: .symbol) else { return }
 
         switch content {
         case .symbol(let symbol):
             inputSymbol(symbol)
         case .backspace:
             deleteBackward()
-        case .consonant:
+        case .consonant, .shift:
             break // Should not happen in symbol mode
+        }
+    }
+
+    /// English mode: tap = lowercase, drag starting upward = uppercase, shift = one-shot uppercase.
+    private func handleEnglishModeGesture(row: Int, column: Int) {
+        let directions = gestureAnalyzer.finalizeGesture()
+
+        guard let content = KeyboardMetrics.keyContent(at: row, column: column, mode: .english) else { return }
+
+        switch content {
+        case .symbol(let letter):
+            let dragUpper = directions.first.map { [.up, .upLeft, .upRight].contains($0) } ?? false
+            let isUppercase = dragUpper || isShiftEnabled
+            inputLetter(isUppercase ? letter.uppercased() : letter)
+            // One-shot shift: consume after a letter is typed.
+            if isShiftEnabled { isShiftEnabled = false }
+        case .backspace:
+            deleteBackward()
+        case .shift:
+            isShiftEnabled.toggle()
+            triggerHapticFeedback()
+        case .consonant:
+            break // Should not happen in english mode
         }
     }
 
     private func handleKoreanModeGesture(row: Int, column: Int) {
         let directions = gestureAnalyzer.finalizeGesture()
 
-        guard let content = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: false) else { return }
+        guard let content = KeyboardMetrics.keyContent(at: row, column: column, mode: .korean) else { return }
 
         switch content {
         case .consonant(let consonant):
@@ -271,6 +380,9 @@ class KeyboardViewModel: ObservableObject {
 
         case .backspace:
             deleteBackward()
+
+        case .shift:
+            break // Shift not used in Korean mode (쌍자음 are direct keys).
         }
     }
 
@@ -293,6 +405,8 @@ class KeyboardViewModel: ObservableObject {
         gestureStartPoint = nil
         gestureDirections = []
         previewVowel = nil
+        hintOptions = []
+        hintAnchor = nil
         gestureAnalyzer.reset()
     }
 
@@ -340,6 +454,7 @@ class KeyboardViewModel: ObservableObject {
         let previous = lastComposingText
         lastComposingText = composing
         delegate?.updateComposingText(from: previous, to: composing)
+        updateSuggestions()
     }
 
     private func commitCurrent() {
@@ -352,6 +467,73 @@ class KeyboardViewModel: ObservableObject {
     private func commitAndInsert(_ text: String) {
         commitCurrent()
         delegate?.insertText(text)
+    }
+
+    // MARK: - Snippets (상용어)
+
+    func toggleSnippets() {
+        if !showSnippets { snippets = SnippetStore.shared.all }
+        showSnippets.toggle()
+        triggerHapticFeedback()
+    }
+
+    func insertSnippet(_ text: String) {
+        commitCurrent()
+        delegate?.insertText(text)
+        showSnippets = false
+        triggerHapticFeedback()
+    }
+
+    /// 입력창에 지금 친 줄을 상용어로 캡처 (익스텐션은 자체 텍스트 입력이 어려워서).
+    func addCurrentLineAsSnippet() {
+        guard let before = delegate?.documentContextBeforeInput else { return }
+        let line = before.components(separatedBy: .newlines).last ?? before
+        if SnippetStore.shared.add(line) {
+            snippets = SnippetStore.shared.all
+        }
+    }
+
+    func removeSnippet(at index: Int) {
+        SnippetStore.shared.remove(at: index)
+        snippets = SnippetStore.shared.all
+    }
+
+    // MARK: - 단어 예측
+
+    /// 후보 선택: 지금 친 prefix를 지우고 단어를 통째로 삽입.
+    func selectSuggestion(_ word: String) {
+        guard let before = delegate?.documentContextBeforeInput else { return }
+        let prefix = before.components(separatedBy: Self.wordSeparators).last ?? ""
+        composer.reset()
+        lastComposingText = ""
+        for _ in prefix { delegate?.deleteBackward() }
+        delegate?.insertText(word)
+        suggestions = []
+        triggerHapticFeedback()
+    }
+
+    /// 커서 앞 현재 단어(prefix)로 사전을 검색해 후보를 갱신.
+    /// proxy(documentContextBeforeInput)는 insert/delete 직후엔 아직 옛 값이라,
+    /// 다음 런루프에서 갱신된 값을 읽는다.
+    private func updateSuggestions() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let before = self.delegate?.documentContextBeforeInput ?? ""
+            let prefix = before.components(separatedBy: Self.wordSeparators).last ?? ""
+            self.suggestions = prefix.isEmpty ? [] : WordStore.shared.suggestions(prefix: prefix)
+        }
+    }
+
+    private static let wordSeparators = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+
+    /// 단어 확정 시점(공백·줄바꿈·구두점)에 커서 앞 마지막 단어를 사전에 학습시킨다.
+    /// proxy 갱신을 기다려 다음 런루프에서 읽고, 끝의 공백/구두점은 걸러 단어만 추출.
+    private func learnCurrentWord() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let before = self.delegate?.documentContextBeforeInput else { return }
+            let parts = before.components(separatedBy: Self.wordSeparators).filter { !$0.isEmpty }
+            if let word = parts.last { WordStore.shared.record(word) }
+        }
     }
 
     private func triggerHapticFeedback() {
@@ -392,6 +574,7 @@ protocol KeyboardViewModelDelegate: AnyObject {
     func updateComposingText(from previous: String, to current: String)
     func switchToNextKeyboard()
     func triggerHapticFeedback()
+    var documentContextBeforeInput: String? { get }
 }
 
 #Preview {
