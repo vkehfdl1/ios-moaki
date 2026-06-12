@@ -8,6 +8,7 @@ struct KeyView: View {
     var hintOptions: [VowelOption] = []
     var hintAnchor: CGPoint? = nil
     let longPressNumber: String?
+    var isShiftEnabled: Bool = false  // English: drives shift key visual highlight
     let onLongPress: ((String) -> Void)?
     let onBackspacePressStart: (() -> Void)?
     let onBackspacePressEnd: (() -> Void)?
@@ -94,12 +95,19 @@ struct KeyView: View {
             }
 
         case .symbol(let symbol):
-            Text(symbol)
+            // Mirror the live shift state on the letter labels for English mode.
+            let displayed = isShiftEnabled ? symbol.uppercased() : symbol
+            Text(displayed)
                 .font(.system(size: keySize.height * 0.4, weight: .medium))
                 .foregroundColor(textColor)
 
         case .backspace:
             Image(systemName: "delete.left")
+                .font(.system(size: keySize.height * 0.35))
+                .foregroundColor(textColor)
+
+        case .shift:
+            Image(systemName: isShiftEnabled ? "shift.fill" : "shift")
                 .font(.system(size: keySize.height * 0.35))
                 .foregroundColor(textColor)
         }
@@ -166,6 +174,10 @@ struct KeyView: View {
             return isPressed || isHighlighted ? Color(.systemGray4) : Color(.systemGray6)
         case .consonant:
             return isPressed || isHighlighted ? Color(.systemGray5) : Color(.systemBackground)
+        case .shift:
+            // When shift is latched, keep the key tinted so the state is visible.
+            if isShiftEnabled { return Color(.systemGray3) }
+            return isPressed || isHighlighted ? Color(.systemGray4) : Color(.systemGray6)
         }
     }
 

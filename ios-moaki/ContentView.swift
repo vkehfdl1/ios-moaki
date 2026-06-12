@@ -94,6 +94,23 @@ struct ContentView: View {
                         )
                     }
 
+                    NavigationLink {
+                        FallingWordsGameView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "gamecontroller")
+                            Text("연습 게임")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(red: 0.282, green: 0.651, blue: 0.635))
+                        )
+                    }
+
                     Button(action: openSettings) {
                         HStack {
                             Image(systemName: "gear")

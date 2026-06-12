@@ -2,8 +2,8 @@ import SwiftUI
 
 struct FunctionRowView: View {
     let totalWidth: CGFloat
-    let isSymbolMode: Bool
-    let onToggleModePressed: () -> Void
+    let mode: KeyboardMode
+    let onSwitchMode: (KeyboardMode) -> Void
     let onCommaPressed: () -> Void
     let onSpacePressed: () -> Void
     let onReturnPressed: () -> Void
@@ -12,17 +12,37 @@ struct FunctionRowView: View {
     private let spacing: CGFloat = KeyboardMetrics.keySpacing
     private let height: CGFloat = KeyboardMetrics.functionRowHeight
 
+    // Each button is labeled with the mode it switches TO.
+    private var languageTarget: (label: String, mode: KeyboardMode) {
+        mode == .korean ? ("ABC", .english) : ("한글", .korean)
+    }
+
+    private var symbolTarget: (label: String, mode: KeyboardMode) {
+        mode == .symbol ? ("ABC", .english) : ("123", .symbol)
+    }
+
     var body: some View {
         HStack(spacing: spacing) {
-            // 123/한글 toggle button (replaces globe)
+            // Language toggle (한글 ↔ ABC)
             FunctionKeyView(
                 content: AnyView(
-                    Text(isSymbolMode ? "한글" : "123")
-                        .font(.system(size: 16, weight: .medium))
+                    Text(languageTarget.label)
+                        .font(.system(size: 15, weight: .medium))
                 ),
-                width: toggleWidth,
+                width: languageWidth,
                 height: height,
-                action: onToggleModePressed
+                action: { onSwitchMode(languageTarget.mode) }
+            )
+
+            // Symbol/number toggle (123, or ABC when already in symbol mode)
+            FunctionKeyView(
+                content: AnyView(
+                    Text(symbolTarget.label)
+                        .font(.system(size: 15, weight: .medium))
+                ),
+                width: symbolWidth,
+                height: height,
+                action: { onSwitchMode(symbolTarget.mode) }
             )
 
             // Comma key (left of space)
@@ -80,11 +100,15 @@ struct FunctionRowView: View {
     }
 
     private var availableWidthWithoutReturn: CGFloat {
-        totalWidth - returnWidth - spacing * 6  // 6 gaps for 5 buttons + edges
+        totalWidth - returnWidth - spacing * 7  // 7 gaps for 6 buttons + edges
     }
 
-    private var toggleWidth: CGFloat {
-        availableWidthWithoutReturn * 0.26
+    private var languageWidth: CGFloat {
+        availableWidthWithoutReturn * 0.14
+    }
+
+    private var symbolWidth: CGFloat {
+        availableWidthWithoutReturn * 0.12
     }
 
     private var commaWidth: CGFloat {
@@ -132,29 +156,17 @@ struct FunctionKeyView: View {
 
 #Preview {
     VStack(spacing: 20) {
-        Text("Korean Mode")
-            .font(.headline)
-        FunctionRowView(
-            totalWidth: 350,
-            isSymbolMode: false,
-            onToggleModePressed: { print("Toggle") },
-            onCommaPressed: { print("Comma") },
-            onSpacePressed: { print("Space") },
-            onReturnPressed: { print("Return") },
-            onSnippetPressed: { print("Snippet") }
-        )
-
-        Text("Symbol Mode")
-            .font(.headline)
-        FunctionRowView(
-            totalWidth: 350,
-            isSymbolMode: true,
-            onToggleModePressed: { print("Toggle") },
-            onCommaPressed: { print("Comma") },
-            onSpacePressed: { print("Space") },
-            onReturnPressed: { print("Return") },
-            onSnippetPressed: { print("Snippet") }
-        )
+        ForEach([KeyboardMode.korean, .english, .symbol], id: \.self) { mode in
+            FunctionRowView(
+                totalWidth: 350,
+                mode: mode,
+                onSwitchMode: { print("Switch to \($0)") },
+                onCommaPressed: { print("Comma") },
+                onSpacePressed: { print("Space") },
+                onReturnPressed: { print("Return") },
+                onSnippetPressed: { print("Snippet") }
+            )
+        }
     }
     .padding()
     .background(Color(.systemGray6))

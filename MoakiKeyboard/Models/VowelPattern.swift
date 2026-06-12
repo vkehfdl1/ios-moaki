@@ -41,6 +41,7 @@ struct VowelPattern {
         // Eu-i (ㅡ + ㅣ)
         VowelPattern(.ㅢ, .downRight, .upLeft),           // ↘↖ (오른쪽아래-왼쪽위)
         VowelPattern(.ㅢ, .downRight, .up),               // ↘↑ (오른쪽아래-위)
+        VowelPattern(.ㅢ, .downLeft, .up),                // ↙↑ — ㅡ 긋고 ㅣ로 꺾기 (↗/↖도 정규화로 ↑가 됨)
 
         // 즉시 보정 (떼기 전 ㅏ↔ㅣ): 인접 단모음이 잘못 나왔을 때 이어서 정정
         VowelPattern(.ㅣ, .right, .up),                   // ㅏ(→) 뒤 ↑로 올리면 → ㅣ

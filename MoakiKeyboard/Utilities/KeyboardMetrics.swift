@@ -6,6 +6,14 @@ enum KeyContent: Equatable {
     case consonant(Choseong)
     case symbol(String)
     case backspace
+    case shift  // English mode: toggles next letter's case (one-shot shift)
+}
+
+/// Keyboard input mode (layout + input behavior)
+enum KeyboardMode {
+    case korean
+    case symbol
+    case english
 }
 
 enum KeyboardMetrics {
@@ -53,14 +61,32 @@ enum KeyboardMetrics {
         return availableWidth / (symbolWidthRatio * 2 + 5)
     }
 
-    // Calculate key height based on available space
-    static func keyHeight(for totalHeight: CGFloat) -> CGFloat {
-        let availableHeight = totalHeight - functionRowHeight - suggestionBarHeight - keySpacing * CGFloat(gridRows + 2)
-        return availableHeight / CGFloat(gridRows)
+    // Calculate key height based on available space.
+    // Uses the fixed gridRows (4) so the Korean grid always occupies the same area,
+    // even when English mode only renders 3 rows (English rows just grow a bit taller).
+    static func keyHeight(for totalHeight: CGFloat, rowCount: Int = gridRows) -> CGFloat {
+        let rows = max(rowCount, 1)
+        let availableHeight = totalHeight - functionRowHeight - suggestionBarHeight - keySpacing * CGFloat(rows + 2)
+        return availableHeight / CGFloat(rows)
+    }
+
+    // Number of rows in the active layout.
+    static func rowCount(for mode: KeyboardMode) -> Int {
+        return layout(for: mode).count
     }
 
     // Get key width for specific column and row
-    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat) -> CGFloat {
+    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat, mode: KeyboardMode = .korean) -> CGFloat {
+        // English QWERTY: 10-column grid (centerKeyWidth = englishKeyWidth).
+        // Row 0: 10 letters @ 1 unit; row 1: 9 letters @ 1 unit (centered by HStack);
+        // row 2: shift @ 1.5 units + 7 letters @ 1 unit + backspace @ 1.5 units.
+        if mode == .english {
+            if row == 2 && (column == 0 || column == 8) {
+                return centerKeyWidth * 1.5 + keySpacing * 0.5
+            }
+            return centerKeyWidth
+        }
+
         let sideWidth = centerKeyWidth * symbolWidthRatio
 
         // Row 3: backspace (col 5) fills remaining space to match row 0-2 width
@@ -79,11 +105,27 @@ enum KeyboardMetrics {
         return centerKeyWidth
     }
 
+    // Layout for the active mode.
+    static func layout(for mode: KeyboardMode) -> [[KeyContent]] {
+        switch mode {
+        case .korean: return koreanLayout
+        case .symbol: return symbolLayout
+        case .english: return englishLayout
+        }
+    }
+
     // Get number of columns for a row in the active layout.
-    static func columnCount(for row: Int, isSymbolMode: Bool) -> Int {
-        let layout = isSymbolMode ? symbolLayout : koreanLayout
-        guard row >= 0 && row < layout.count else { return 0 }
-        return layout[row].count
+    static func columnCount(for row: Int, mode: KeyboardMode) -> Int {
+        let activeLayout = layout(for: mode)
+        guard row >= 0 && row < activeLayout.count else { return 0 }
+        return activeLayout[row].count
+    }
+
+    // English QWERTY: unit width based on 10 columns (row 0 sets the densest pitch).
+    // Row 0 fills full width; rows 1 & 2 are slightly narrower (HStack centers them).
+    static func englishKeyWidth(for totalWidth: CGFloat) -> CGFloat {
+        let spacing = keySpacing * 11  // 11 gaps for 10 columns + edges
+        return (totalWidth - spacing) / 10
     }
 
     // Calculate key size based on available width (legacy method for compatibility)
@@ -117,6 +159,16 @@ enum KeyboardMetrics {
         [.symbol("/"), .symbol("?"), .symbol("*"), .symbol("0"), .symbol("#"), .backspace],
     ]
 
+    // English mode layout: standard 3-row QWERTY.
+    // Row 0: 10 letters; row 1: 9 letters (centered); row 2: shift + 7 letters + backspace.
+    // Tap = lowercase, drag up = uppercase (handled in the view model).
+    // Shift key toggles one-shot uppercase via viewModel.isShiftEnabled.
+    static let englishLayout: [[KeyContent]] = [
+        [.symbol("q"), .symbol("w"), .symbol("e"), .symbol("r"), .symbol("t"), .symbol("y"), .symbol("u"), .symbol("i"), .symbol("o"), .symbol("p")],
+        [.symbol("a"), .symbol("s"), .symbol("d"), .symbol("f"), .symbol("g"), .symbol("h"), .symbol("j"), .symbol("k"), .symbol("l")],
+        [.shift, .symbol("z"), .symbol("x"), .symbol("c"), .symbol("v"), .symbol("b"), .symbol("n"), .symbol("m"), .backspace],
+    ]
+
     // Long press number mapping for Korean mode
     // Only basic consonants (row 1-2) have number mappings
     // ㅂㅈㄷㄱㅅ → 1 2 3 4 5
@@ -129,18 +181,18 @@ enum KeyboardMetrics {
     ]
 
     // Get key content at grid position for given mode
-    static func keyContent(at row: Int, column: Int, isSymbolMode: Bool) -> KeyContent? {
-        let layout = isSymbolMode ? symbolLayout : koreanLayout
-        guard row >= 0 && row < layout.count,
-              column >= 0 && column < layout[row].count else {
+    static func keyContent(at row: Int, column: Int, mode: KeyboardMode) -> KeyContent? {
+        let activeLayout = layout(for: mode)
+        guard row >= 0 && row < activeLayout.count,
+              column >= 0 && column < activeLayout[row].count else {
             return nil
         }
-        return layout[row][column]
+        return activeLayout[row][column]
     }
 
     // Get consonant at grid position (for Korean mode only)
     static func consonant(at row: Int, column: Int) -> Choseong? {
-        guard let content = keyContent(at: row, column: column, isSymbolMode: false) else {
+        guard let content = keyContent(at: row, column: column, mode: .korean) else {
             return nil
         }
         if case .consonant(let choseong) = content {
