@@ -164,6 +164,50 @@ enum KeyboardMetrics {
         .downLeft:  .ㅡ,
     ]
 
+    /// Grid offset (Δrow, Δcol) → basic vowel mapping for popup-mode
+    /// cell-based hit-testing. The popup path uses this directly — it does
+    /// NOT interpret stroke angle. The 6 entries mirror directionalVowelMap
+    /// in spatial layout:
+    ///   (0, +1)  right     → ㅏ
+    ///   (0, -1)  left      → ㅓ
+    ///   (-1, 0)  up        → ㅗ
+    ///   (+1, 0)  down      → ㅜ
+    ///   (-1, +1) upRight   → ㅣ
+    ///   (+1, -1) downLeft  → ㅡ
+    struct Offset: Hashable {
+        let dRow: Int
+        let dCol: Int
+        init(_ dRow: Int, _ dCol: Int) {
+            self.dRow = dRow
+            self.dCol = dCol
+        }
+    }
+
+    static let directionalVowelByOffset: [Offset: Jungseong] = [
+        Offset(0,  1):  .ㅏ,   // right
+        Offset(0, -1):  .ㅓ,   // left
+        Offset(-1, 0):  .ㅗ,   // up
+        Offset(1,  0):  .ㅜ,   // down
+        Offset(-1, 1):  .ㅣ,   // upRight
+        Offset(1, -1):  .ㅡ,   // downLeft
+    ]
+
+    /// Pure cell-position vowel lookup for popup mode. NO angle math.
+    /// Computes offset from source → cell, checks the 6-entry directional
+    /// map first, then the 15-entry fixed-hint map. Returns nil when the
+    /// cell has no vowel mapping (e.g. far-tail consonants, symbols, backspace).
+    static func popupVowelAt(cell: (row: Int, column: Int), source: (row: Int, column: Int)) -> Jungseong? {
+        let dRow = cell.row - source.row
+        let dCol = cell.column - source.column
+        if let v = directionalVowelByOffset[Offset(dRow, dCol)] {
+            return v
+        }
+        if let v = fixedVowelHintMap[cell.row * 7 + cell.column] {
+            return v
+        }
+        return nil
+    }
+
     /// Grid offset (Δrow, Δcol) for each gesture direction. Origin (0,0)
     /// is the touched consonant; positive row is down, positive col is right.
     static func gridOffset(for direction: GestureDirection) -> (dRow: Int, dCol: Int) {

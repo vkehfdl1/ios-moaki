@@ -21,6 +21,11 @@ struct KeyView: View {
     /// prominent overlay on top of this cell during SELECTING. nil means
     /// this cell is not one of the 6 directional adjacent cells.
     var directionalOverlay: Jungseong? = nil
+    /// True when the user is mid-drag in popup mode and the finger is
+    /// currently over this cell. Renders the cell in INVERTED styling
+    /// (dark background + light foreground) as a live slide highlight.
+    /// Never set on the source cell or in non-popup mode.
+    var isSlideHighlighted: Bool = false
     /// True when this cell is the source consonant slot of the active
     /// SELECTING popup. The key label is suppressed (finger covers it).
     var hideContent: Bool = false
@@ -166,9 +171,7 @@ struct KeyView: View {
         if let v = vowelHint {
             Text(String(v.compatibilityCharacter))
                 .font(.system(size: keySize.height * 0.22, weight: .medium))
-                .foregroundColor(isInSelecting
-                                 ? Color(red: 0.282, green: 0.651, blue: 0.635).opacity(0.95)
-                                 : Color.secondary.opacity(0.45))
+                .foregroundColor(hintForegroundColor)
         } else if reservesHintSpace {
             // Reserve the same vertical space so consonants align.
             Text(" ")
@@ -254,7 +257,21 @@ struct KeyView: View {
         }
     }
 
+    private var hintForegroundColor: Color {
+        // Inverted styling: hint becomes light against dark background.
+        if isSlideHighlighted {
+            return Color(.systemBackground).opacity(0.85)
+        }
+        return isInSelecting
+            ? Color(red: 0.282, green: 0.651, blue: 0.635).opacity(0.95)
+            : Color.secondary.opacity(0.45)
+    }
+
     private var backgroundColor: Color {
+        // Live slide highlight inverts the cell.
+        if isSlideHighlighted {
+            return Color.primary
+        }
         switch content {
         case .backspace:
             return isPressed || isHighlighted ? Color(.systemGray4) : Color(.systemGray6)
@@ -273,6 +290,8 @@ struct KeyView: View {
     }
 
     private var textColor: Color {
+        // Inverted styling: light text on dark background.
+        if isSlideHighlighted { return Color(.systemBackground) }
         if case .vowel = content { return .white }
         return .primary
     }

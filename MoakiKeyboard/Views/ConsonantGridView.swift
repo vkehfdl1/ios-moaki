@@ -8,6 +8,9 @@ struct KeyGridView: View {
     /// Vowel-popup phase (see PopupPhase). When non-.consonant, the grid
     /// renders the vowel popup layout instead of koreanLayout.
     var popupPhase: PopupPhase = .idle
+    /// Cell under the finger during popup-mode SELECTING. Drives the live
+    /// inverted-cell highlight. nil when not selecting or off-grid.
+    var highlightedSlot: (row: Int, column: Int)? = nil
     let activeKey: (row: Int, column: Int)?
     let previewVowel: Jungseong?
     var hintOptions: [VowelOption] = []
@@ -83,6 +86,12 @@ struct KeyGridView: View {
                         // there. The source cell is hidden (finger covers it).
                         let isOrigin = (selectingOrigin?.row == row && selectingOrigin?.column == column)
                         let dirVowel: Jungseong? = directionalVowel(at: row, column: column)
+                        // Live slide highlight: only meaningful in popup
+                        // SELECTING phase, and never on the (hidden) source.
+                        let isHighlightedCell = isInSelecting
+                            && !isOrigin
+                            && highlightedSlot?.row == row
+                            && highlightedSlot?.column == column
                         KeyView(
                             content: content,
                             keySize: CGSize(width: width, height: keyHeight),
@@ -92,6 +101,7 @@ struct KeyGridView: View {
                             isInSelecting: isInSelecting,
                             reservesHintSpace: !isSymbolMode && vowelHintsVisible,
                             directionalOverlay: dirVowel,
+                            isSlideHighlighted: isHighlightedCell,
                             hideContent: isOrigin,
                             hintOptions: isActive ? hintOptions : [],
                             hintAnchor: isActive ? hintAnchor : nil,

@@ -25,6 +25,7 @@ struct KeyboardView: View {
                         totalWidth: geometry.size.width,
                         isSymbolMode: viewModel.isSymbolMode,
                         popupPhase: viewModel.popupPhase,
+                        highlightedSlot: viewModel.highlightedSlot,
                         activeKey: viewModel.activeKey,
                         previewVowel: viewModel.previewVowel,
                         hintOptions: viewModel.hintOptions,
@@ -176,6 +177,11 @@ class KeyboardViewModel: ObservableObject {
     /// Current phase for vowel-popup mode (only meaningful when
     /// KeyboardSettings.useVowelPopupMode == true).
     @Published var popupPhase: PopupPhase = .idle
+
+    /// Cell under the finger during popup-mode SELECTING. Drives the live
+    /// slide highlight (inverted cell rendering). nil when not selecting
+    /// or when the finger has gone off-grid.
+    @Published var highlightedSlot: (row: Int, column: Int)? = nil
 
     /// Grid metrics captured during gesture start, used to hit-test the finger
     /// against grid cells during popup-mode drags. nil outside an active drag.
@@ -336,6 +342,10 @@ class KeyboardViewModel: ObservableObject {
             popupPhase = .selecting(origin: (row, column), choseong: cho, hasMoved: false, currentCell: (row, column))
             popupCurrentCell = (row, column)
             popupLastVowelOver = nil
+            // Source cell is hidden (existing) — don't highlight it.
+            highlightedSlot = nil
+            // NOTE: do NOT touch gestureAnalyzer here. Popup mode is pure
+            // cell hit-test; the analyzer is reserved for non-popup gesture mode.
             triggerHapticFeedback()
             return
         }
@@ -413,7 +423,12 @@ class KeyboardViewModel: ObservableObject {
     //                   - elsewhere (symbol, backspace, ㅎ/ㅃ/ㅆ/ㅋ tail) → cancel
 
     private func handlePopupMove(at point: CGPoint) {
-        guard let cell = cell(at: point) else { return }
+        guard let cell = cell(at: point) else {
+            // Finger drifted off-grid: clear any live highlight so we
+            // do not leave a stale inverted cell on screen.
+            highlightedSlot = nil
+            return
+        }
         popupCurrentCell = cell
 
         switch popupPhase {
@@ -422,6 +437,13 @@ class KeyboardViewModel: ObservableObject {
         case .selecting(let origin, let cho, let hadMoved, _):
             let moved = hadMoved || (cell.row != origin.row || cell.column != origin.column)
             popupPhase = .selecting(origin: origin, choseong: cho, hasMoved: moved, currentCell: cell)
+            // Live highlight follows the finger. Source slot stays hidden
+            // (existing key rendering) so we skip highlighting it.
+            if cell.row == origin.row && cell.column == origin.column {
+                highlightedSlot = nil
+            } else {
+                highlightedSlot = cell
+            }
         }
     }
 
@@ -432,46 +454,45 @@ class KeyboardViewModel: ObservableObject {
         popupPhase = .idle
         popupCurrentCell = nil
         popupLastVowelOver = nil
-
-        guard let cell = cell else { resetGestureState(); return }
+        highlightedSlot = nil
 
         switch phase {
         case .idle:
             break
         case .selecting(let origin, let cho, let hasMoved, _):
-            // Released on source slot with no movement → consonant only.
-            // This preserves the b4d258e tap path: composer routes CV-OPEN
-            // → 받침 attachment automatically.
+            // Off-grid release OR released on source slot with no movement
+            // both fall through to tap-only path with the SOURCE consonant.
+            // Preserves the b4d258e tap path: composer routes CV-OPEN
+            // -> batchim attachment automatically.
+            guard let cell = cell else {
+                inputConsonant(cho)
+                break
+            }
             if !hasMoved || (cell.row == origin.row && cell.column == origin.column) {
                 inputConsonant(cho)
                 break
             }
-
-            // Check directional adjacent cells FIRST — directional wins
-            // when a cell is both directional-adjacent and has a fixed hint.
-            let directionals = KeyboardMetrics.directionalVowels(around: origin.row, column: origin.column)
-            if let hit = directionals.first(where: { $0.row == cell.row && $0.column == cell.column }) {
+            // Pure cell hit-test (NOT angle-based): popupVowelAt checks the
+            // 6-entry directional offset map first, then the 15-entry
+            // fixed-hint map. Directional wins on overlap.
+            if let vowel = KeyboardMetrics.popupVowelAt(
+                cell: (row: cell.row, column: cell.column),
+                source: (row: origin.row, column: origin.column)
+            ) {
                 inputConsonant(cho)
-                inputVowel(hit.vowel)
+                inputVowel(vowel)
                 break
             }
-
-            // Then fixed-hint cells.
-            if let v = KeyboardMetrics.fixedVowelHint(row: cell.row, column: cell.column) {
-                inputConsonant(cho)
-                inputVowel(v)
-                break
-            }
-
-            // Otherwise cancel — released on a cell with no vowel mapping
-            // (symbol, backspace, or a tail consonant with no fixed hint).
-            // No input.
+            // Cell has no vowel mapping (non-vowel consonant or symbol):
+            // fall through to source-consonant tap-only path. Do NOT
+            // input the destination cell's content.
+            inputConsonant(cho)
         }
 
         resetGestureState()
     }
 
-        /// Hit-test a point (in the keyboardGrid coordinate space) against the
+    /// Hit-test a point (in the keyboardGrid coordinate space) against the
     /// (now-static) koreanLayout. Returns the (row, column) of the cell
     /// under the point, or nil if outside the grid.
     private func cell(at point: CGPoint) -> (row: Int, column: Int)? {
@@ -583,6 +604,7 @@ class KeyboardViewModel: ObservableObject {
         gridTotalWidth = nil
         gridCenterKeyWidth = nil
         gridKeyHeight = nil
+        highlightedSlot = nil
         gestureAnalyzer.reset()
     }
 
