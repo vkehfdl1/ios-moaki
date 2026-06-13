@@ -12,14 +12,24 @@ struct KeyboardView: View {
 
             ZStack {
                 VStack(spacing: KeyboardMetrics.keySpacing) {
+                    // Word prediction suggestions (top bar)
+                    SuggestionBarView(
+                        suggestions: viewModel.suggestions,
+                        onSelect: { viewModel.selectSuggestion($0) }
+                    )
+
                     // Key grid (consonants or symbols based on mode)
                     KeyGridView(
                         centerKeyWidth: centerKeyWidth,
                         keyHeight: keyHeight,
                         totalWidth: geometry.size.width,
                         isSymbolMode: viewModel.isSymbolMode,
+                        popupPhase: viewModel.popupPhase,
+                        highlightedSlot: viewModel.highlightedSlot,
                         activeKey: viewModel.activeKey,
                         previewVowel: viewModel.previewVowel,
+                        hintOptions: viewModel.hintOptions,
+                        hintAnchor: viewModel.hintAnchor,
                         onConsonantTap: { consonant in
                             viewModel.inputConsonant(consonant)
                         },
@@ -36,7 +46,10 @@ struct KeyboardView: View {
                             viewModel.inputLongPressNumber(number)
                         },
                         onGestureStart: { row, column, point in
-                            viewModel.gestureStarted(row: row, column: column, at: point)
+                            viewModel.gestureStarted(row: row, column: column, at: point,
+                                                     totalWidth: geometry.size.width,
+                                                     centerKeyWidth: centerKeyWidth,
+                                                     keyHeight: keyHeight)
                         },
                         onGestureMove: { point in
                             viewModel.gestureMoved(to: point)
@@ -61,6 +74,9 @@ struct KeyboardView: View {
                         },
                         onReturnPressed: {
                             viewModel.inputReturn()
+                        },
+                        onSnippetPressed: {
+                            viewModel.toggleSnippets()
                         }
                     )
                 }
@@ -74,8 +90,74 @@ struct KeyboardView: View {
                         currentVowel: viewModel.previewVowel
                     )
                 }
+
+                // Live syllable preview: shows the consonant+vowel being typed,
+                // large at top-center, so the user can correct before lifting.
+                // In popup mode the popup itself acts as preview, so suppress here.
+                if !viewModel.isSymbolMode,
+                   viewModel.popupPhase == .idle,
+                   let active = viewModel.activeKey,
+                   let cho = KeyboardMetrics.consonant(at: active.row, column: active.column) {
+                    let preview: Character = viewModel.previewVowel
+                        .map { HangulConstants.composeSyllable(choseong: cho, jungseong: $0) }
+                        ?? cho.compatibilityCharacter
+                    VStack {
+                        Text(String(preview))
+                            .font(.system(size: 60, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(minWidth: 92, minHeight: 92)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18)
+                                    .fill(Color.black.opacity(0.72))
+                                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                            )
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                }
+
+                // 상용어 패널 (키보드 영역 덮는 오버레이)
+                if viewModel.showSnippets {
+                    SnippetPanelView(
+                        snippets: viewModel.snippets,
+                        maxCount: SnippetStore.shared.maxCount,
+                        onInsert: { viewModel.insertSnippet($0) },
+                        onAdd: { viewModel.addCurrentLineAsSnippet() },
+                        onRemove: { viewModel.removeSnippet(at: $0) },
+                        onClose: { viewModel.showSnippets = false }
+                    )
+                }
             }
             .background(Color(.systemGray6))
+        }
+    }
+}
+
+/// Vowel-popup mode interaction phases.
+///
+/// HYBRID design (Option 2 + 보강):
+/// - `.idle`: no popup gesture active. The grid renders normally with 15
+///   small gray fixed-vowel hints visible on the closest-to-center
+///   consonant slots.
+/// - `.selecting`: finger is down on a consonant key. The 6 directional
+///   vowels (ㅏㅓㅗㅜㅣㅡ) overlay on the (clipped) adjacent cells; the
+///   source consonant slot is hidden. On release:
+///     * source slot (no movement) → inputConsonant only (composer routes,
+///       preserves the b4d258e CV→batchim behavior)
+///     * adjacent directional cell → C + directional vowel
+///     * fixed-hint cell           → C + fixed vowel
+///     * anywhere else             → cancel (no input)
+enum PopupPhase: Equatable {
+    case idle
+    case selecting(origin: (row: Int, column: Int), choseong: Choseong, hasMoved: Bool, currentCell: (row: Int, column: Int)?)
+
+    static func == (lhs: PopupPhase, rhs: PopupPhase) -> Bool {
+        switch (lhs, rhs) {
+        case (.idle, .idle): return true
+        case let (.selecting(lo, lc, lm, lcc), .selecting(ro, rc, rm, rcc)):
+            return lo == ro && lc == rc && lm == rm
+                && lcc?.row == rcc?.row && lcc?.column == rcc?.column
+        default: return false
         }
     }
 }
@@ -87,9 +169,33 @@ class KeyboardViewModel: ObservableObject {
     @Published var gestureDirections: [GestureDirection] = []
     @Published var gestureStartPoint: CGPoint?
     @Published var isSymbolMode: Bool = false
+    @Published var hintOptions: [VowelOption] = []
+    @Published var hintAnchor: CGPoint?
+    @Published var showSnippets = false
+    @Published var snippets: [String] = []
+    @Published var suggestions: [String] = []
+    /// Current phase for vowel-popup mode (only meaningful when
+    /// KeyboardSettings.useVowelPopupMode == true).
+    @Published var popupPhase: PopupPhase = .idle
+
+    /// Cell under the finger during popup-mode SELECTING. Drives the live
+    /// slide highlight (inverted cell rendering). nil when not selecting
+    /// or when the finger has gone off-grid.
+    @Published var highlightedSlot: (row: Int, column: Int)? = nil
+
+    /// Grid metrics captured during gesture start, used to hit-test the finger
+    /// against grid cells during popup-mode drags. nil outside an active drag.
+    private var gridTotalWidth: CGFloat?
+    private var gridCenterKeyWidth: CGFloat?
+    private var gridKeyHeight: CGFloat?
+    /// Last cell the finger was over while popup is active.
+    private var popupCurrentCell: (row: Int, column: Int)?
+    /// Tracks the last vowel cell the finger crossed; used to decide which
+    /// vowel to commit when the user drags back to a consonant for batchim.
+    private var popupLastVowelOver: Jungseong?
 
     private let composer = HangulComposer()
-    private let gestureAnalyzer = GestureAnalyzer()
+    private var gestureAnalyzer: GestureRecognizing = GestureAnalyzer()
     private let vowelResolver = VowelResolver()
 
     /// Tracks the last composing text to enable incremental updates
@@ -141,8 +247,10 @@ class KeyboardViewModel: ObservableObject {
     }
 
     func inputSymbol(_ symbol: String) {
+        learnCurrentWord()
         commitCurrent()
         delegate?.insertText(symbol)
+        updateSuggestions()
         triggerHapticFeedback()
     }
 
@@ -161,6 +269,7 @@ class KeyboardViewModel: ObservableObject {
         let action = composer.deleteBackward()
         if action == .none {
             delegate?.deleteBackward()
+            updateSuggestions()
         } else {
             handleComposerAction(action)
         }
@@ -168,12 +277,16 @@ class KeyboardViewModel: ObservableObject {
     }
 
     func inputSpace() {
+        learnCurrentWord()
         commitAndInsert(" ")
+        updateSuggestions()
         triggerHapticFeedback()
     }
 
     func inputReturn() {
+        learnCurrentWord()
         commitAndInsert("\n")
+        updateSuggestions()
         triggerHapticFeedback()
     }
 
@@ -197,29 +310,93 @@ class KeyboardViewModel: ObservableObject {
 
     // MARK: - Gesture Handling
 
-    func gestureStarted(row: Int, column: Int, at point: CGPoint) {
+    /// Called by the view when a touch begins on `(row, column)`. The grid
+    /// metrics let the ViewModel hit-test the finger against cells later.
+    func gestureStarted(row: Int, column: Int, at point: CGPoint,
+                        totalWidth: CGFloat = 0, centerKeyWidth: CGFloat = 0, keyHeight: CGFloat = 0) {
         didHandleLongPressNumberInCurrentGesture = false
         activeKey = (row, column)
         gestureStartPoint = point
+        gridTotalWidth = totalWidth
+        gridCenterKeyWidth = centerKeyWidth
+        gridKeyHeight = keyHeight
+
+        // ─── VOWEL POPUP MODE ───────────────────────────────────────────────
+        // STATIC design: on touch-down over a consonant cell, enter the
+        // .selecting phase. The current cell's static vowel is what gets
+        // committed on release-in-place (the "hidden vowel" mechanic).
+        //
+        // Bypass if the composer is currently CV-OPEN (.choseongJungseong):
+        // a tap there must attach as 받침 via the composer's existing
+        // routing (preserves the b4d258e fix). Drop straight through to
+        // inputConsonant.
+        // TODO: remove diagnostic
+        NSLog("[POPUP_DIAG] gestureStarted r=\(row) c=\(column) useVowelPopupMode=\(KeyboardSettings.shared.useVowelPopupMode) isSymbolMode=\(isSymbolMode)")
+        if !isSymbolMode,
+           KeyboardSettings.shared.useVowelPopupMode,
+           case .consonant(let cho) = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: false) ?? .symbol("") {
+            if case .choseongJungseong = composer.state {
+                // CV-OPEN — tap-as-batchim path. Don't engage selecting.
+                inputConsonant(cho)
+                triggerHapticFeedback()
+                return
+            }
+            popupPhase = .selecting(origin: (row, column), choseong: cho, hasMoved: false, currentCell: (row, column))
+            popupCurrentCell = (row, column)
+            popupLastVowelOver = nil
+            // Source cell is hidden (existing) — don't highlight it.
+            highlightedSlot = nil
+            // NOTE: do NOT touch gestureAnalyzer here. Popup mode is pure
+            // cell hit-test; the analyzer is reserved for non-popup gesture mode.
+            triggerHapticFeedback()
+            return
+        }
+
+        // ─── GESTURE (legacy) MODE ──────────────────────────────────────────
+        // Pick the recognizer per gesture so a settings change applies immediately.
+        gestureAnalyzer = KeyboardSettings.shared.useGridRecognition
+            ? GridGestureAnalyzer()
+            : GestureAnalyzer()
         gestureAnalyzer.reset()
         gestureAnalyzer.addPoint(point)
         gestureDirections = []
         previewVowel = nil
+        hintOptions = vowelResolver.nextOptions(directions: [])
+        hintAnchor = nil
     }
 
+    /// `point` is in the keyboardGrid coordinate space when popup mode is
+    /// active, or the originating key's local space otherwise.
     func gestureMoved(to point: CGPoint) {
+        // ─── POPUP MODE: hit-test against grid cells ───────────────────────
+        if popupPhase != .idle {
+            handlePopupMove(at: point)
+            return
+        }
+
         gestureAnalyzer.addPoint(point)
         let directions = gestureAnalyzer.getDirections()
         gestureDirections = directions
 
         // Update preview vowel (only meaningful for consonant keys)
         previewVowel = vowelResolver.peekVowel(directions: directions)
+
+        // Initial vowels anchor at the key; once a stroke begins the follow-on
+        // vowels (ㅐ ㅑ …) anchor at the finger so they appear around it.
+        hintOptions = vowelResolver.nextOptions(directions: directions)
+        hintAnchor = directions.isEmpty ? nil : point
     }
 
     func gestureEnded(row: Int, column: Int) {
         if didHandleLongPressNumberInCurrentGesture {
             didHandleLongPressNumberInCurrentGesture = false
             resetGestureState()
+            return
+        }
+
+        // ─── POPUP MODE: commit based on what's under the finger ───────────
+        if popupPhase != .idle {
+            handlePopupEnd()
             return
         }
 
@@ -233,6 +410,133 @@ class KeyboardViewModel: ObservableObject {
         resetGestureState()
     }
 
+    // MARK: - Vowel Popup Mode Handling (HYBRID design — Option 2 + 보강)
+    //
+    // Phases:
+    //  .idle        — popup not active
+    //  .selecting   — finger down on a consonant. Track currentCell + hasMoved.
+    //                 Release logic (handlePopupEnd):
+    //                   - on source slot, no movement → inputConsonant (composer
+    //                     routes; preserves b4d258e tap-as-batchim)
+    //                   - on directional adjacent cell → C + directional vowel
+    //                     (directional WINS over a coincident fixed hint —
+    //                     the user clearly aimed in that direction)
+    //                   - on fixed-hint cell → C + fixed vowel
+    //                   - elsewhere (symbol, backspace, ㅎ/ㅃ/ㅆ/ㅋ tail) → cancel
+
+    private func handlePopupMove(at point: CGPoint) {
+        guard let cell = cell(at: point) else {
+            // Finger drifted off-grid: clear any live highlight so we
+            // do not leave a stale inverted cell on screen.
+            highlightedSlot = nil
+            return
+        }
+        popupCurrentCell = cell
+
+        switch popupPhase {
+        case .idle:
+            return
+        case .selecting(let origin, let cho, let hadMoved, _):
+            let moved = hadMoved || (cell.row != origin.row || cell.column != origin.column)
+            popupPhase = .selecting(origin: origin, choseong: cho, hasMoved: moved, currentCell: cell)
+            // Live highlight follows the finger. Source slot stays hidden
+            // (existing key rendering) so we skip highlighting it.
+            if cell.row == origin.row && cell.column == origin.column {
+                highlightedSlot = nil
+            } else {
+                highlightedSlot = cell
+            }
+        }
+    }
+
+    private func handlePopupEnd() {
+        // Capture state, then reset before any input (input also triggers UI redraw).
+        let phase = popupPhase
+        let cell = popupCurrentCell
+        popupPhase = .idle
+        popupCurrentCell = nil
+        popupLastVowelOver = nil
+        highlightedSlot = nil
+
+        switch phase {
+        case .idle:
+            break
+        case .selecting(let origin, let cho, let hasMoved, _):
+            // Off-grid release OR released on source slot with no movement
+            // both fall through to tap-only path with the SOURCE consonant.
+            // Preserves the b4d258e tap path: composer routes CV-OPEN
+            // -> batchim attachment automatically.
+            guard let cell = cell else {
+                inputConsonant(cho)
+                break
+            }
+            if !hasMoved || (cell.row == origin.row && cell.column == origin.column) {
+                inputConsonant(cho)
+                break
+            }
+            // Pure cell hit-test (NOT angle-based): popupVowelAt checks the
+            // 6-entry directional offset map first, then the 15-entry
+            // fixed-hint map. Directional wins on overlap.
+            if let vowel = KeyboardMetrics.popupVowelAt(
+                cell: (row: cell.row, column: cell.column),
+                source: (row: origin.row, column: origin.column)
+            ) {
+                inputConsonant(cho)
+                inputVowel(vowel)
+                break
+            }
+            // Cell has no vowel mapping (non-vowel consonant or symbol):
+            // fall through to source-consonant tap-only path. Do NOT
+            // input the destination cell's content.
+            inputConsonant(cho)
+        }
+
+        resetGestureState()
+    }
+
+    /// Hit-test a point (in the keyboardGrid coordinate space) against the
+    /// (now-static) koreanLayout. Returns the (row, column) of the cell
+    /// under the point, or nil if outside the grid.
+    private func cell(at point: CGPoint) -> (row: Int, column: Int)? {
+        guard let center = gridCenterKeyWidth,
+              let kh = gridKeyHeight else { return nil }
+        let spacing = KeyboardMetrics.keySpacing
+
+        // Identify which row the point falls in (rows are uniform height).
+        var y: CGFloat = 0
+        var row = -1
+        for r in 0..<KeyboardMetrics.gridRows {
+            let top = y
+            let bottom = y + kh
+            if point.y >= top - spacing / 2 && point.y < bottom + spacing / 2 {
+                row = r
+                break
+            }
+            y = bottom + spacing
+        }
+        if row < 0 { return nil }
+
+        // Walk the columns of that row, summing widths, to find the column.
+        let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode)
+        var x: CGFloat = 0
+        for col in 0..<columnCount {
+            let w = KeyboardMetrics.keyWidth(for: col, row: row, centerKeyWidth: center)
+            if point.x >= x - spacing / 2 && point.x < x + w + spacing / 2 {
+                return (row, col)
+            }
+            x += w + spacing
+        }
+        return nil
+    }
+
+    private func consonantAt(row: Int, column: Int) -> Choseong? {
+        if let c = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: false),
+           case .consonant(let cho) = c {
+            return cho
+        }
+        return nil
+    }
+
     private func handleSymbolModeTap(row: Int, column: Int) {
         guard let content = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: true) else { return }
 
@@ -241,7 +545,7 @@ class KeyboardViewModel: ObservableObject {
             inputSymbol(symbol)
         case .backspace:
             deleteBackward()
-        case .consonant:
+        case .consonant, .vowel, .hidden:
             break // Should not happen in symbol mode
         }
     }
@@ -271,6 +575,10 @@ class KeyboardViewModel: ObservableObject {
 
         case .backspace:
             deleteBackward()
+        case .vowel, .hidden:
+            // .vowel/.hidden never appear in koreanLayout; popup-mode releases
+            // are handled by gestureEnded(at:) before reaching this code path.
+            break
         }
     }
 
@@ -293,6 +601,12 @@ class KeyboardViewModel: ObservableObject {
         gestureStartPoint = nil
         gestureDirections = []
         previewVowel = nil
+        hintOptions = []
+        hintAnchor = nil
+        gridTotalWidth = nil
+        gridCenterKeyWidth = nil
+        gridKeyHeight = nil
+        highlightedSlot = nil
         gestureAnalyzer.reset()
     }
 
@@ -340,6 +654,7 @@ class KeyboardViewModel: ObservableObject {
         let previous = lastComposingText
         lastComposingText = composing
         delegate?.updateComposingText(from: previous, to: composing)
+        updateSuggestions()
     }
 
     private func commitCurrent() {
@@ -352,6 +667,73 @@ class KeyboardViewModel: ObservableObject {
     private func commitAndInsert(_ text: String) {
         commitCurrent()
         delegate?.insertText(text)
+    }
+
+    // MARK: - Snippets (상용어)
+
+    func toggleSnippets() {
+        if !showSnippets { snippets = SnippetStore.shared.all }
+        showSnippets.toggle()
+        triggerHapticFeedback()
+    }
+
+    func insertSnippet(_ text: String) {
+        commitCurrent()
+        delegate?.insertText(text)
+        showSnippets = false
+        triggerHapticFeedback()
+    }
+
+    /// 입력창에 지금 친 줄을 상용어로 캡처 (익스텐션은 자체 텍스트 입력이 어려워서).
+    func addCurrentLineAsSnippet() {
+        guard let before = delegate?.documentContextBeforeInput else { return }
+        let line = before.components(separatedBy: .newlines).last ?? before
+        if SnippetStore.shared.add(line) {
+            snippets = SnippetStore.shared.all
+        }
+    }
+
+    func removeSnippet(at index: Int) {
+        SnippetStore.shared.remove(at: index)
+        snippets = SnippetStore.shared.all
+    }
+
+    // MARK: - 단어 예측
+
+    /// 후보 선택: 지금 친 prefix를 지우고 단어를 통째로 삽입.
+    func selectSuggestion(_ word: String) {
+        guard let before = delegate?.documentContextBeforeInput else { return }
+        let prefix = before.components(separatedBy: Self.wordSeparators).last ?? ""
+        composer.reset()
+        lastComposingText = ""
+        for _ in prefix { delegate?.deleteBackward() }
+        delegate?.insertText(word)
+        suggestions = []
+        triggerHapticFeedback()
+    }
+
+    /// 커서 앞 현재 단어(prefix)로 사전을 검색해 후보를 갱신.
+    /// proxy(documentContextBeforeInput)는 insert/delete 직후엔 아직 옛 값이라,
+    /// 다음 런루프에서 갱신된 값을 읽는다.
+    private func updateSuggestions() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let before = self.delegate?.documentContextBeforeInput ?? ""
+            let prefix = before.components(separatedBy: Self.wordSeparators).last ?? ""
+            self.suggestions = prefix.isEmpty ? [] : WordStore.shared.suggestions(prefix: prefix)
+        }
+    }
+
+    private static let wordSeparators = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+
+    /// 단어 확정 시점(공백·줄바꿈·구두점)에 커서 앞 마지막 단어를 사전에 학습시킨다.
+    /// proxy 갱신을 기다려 다음 런루프에서 읽고, 끝의 공백/구두점은 걸러 단어만 추출.
+    private func learnCurrentWord() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let before = self.delegate?.documentContextBeforeInput else { return }
+            let parts = before.components(separatedBy: Self.wordSeparators).filter { !$0.isEmpty }
+            if let word = parts.last { WordStore.shared.record(word) }
+        }
     }
 
     private func triggerHapticFeedback() {
@@ -392,6 +774,7 @@ protocol KeyboardViewModelDelegate: AnyObject {
     func updateComposingText(from previous: String, to current: String)
     func switchToNextKeyboard()
     func triggerHapticFeedback()
+    var documentContextBeforeInput: String? { get }
 }
 
 #Preview {

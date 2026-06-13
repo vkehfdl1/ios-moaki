@@ -7,6 +7,7 @@ struct FunctionRowView: View {
     let onCommaPressed: () -> Void
     let onSpacePressed: () -> Void
     let onReturnPressed: () -> Void
+    let onSnippetPressed: () -> Void
 
     private let spacing: CGFloat = KeyboardMetrics.keySpacing
     private let height: CGFloat = KeyboardMetrics.functionRowHeight
@@ -33,6 +34,17 @@ struct FunctionRowView: View {
                 width: commaWidth,
                 height: height,
                 action: onCommaPressed
+            )
+
+            // Snippet (상용어) — 문서 아이콘, 스페이스 옆
+            FunctionKeyView(
+                content: AnyView(
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 18))
+                ),
+                width: snippetWidth,
+                height: height,
+                action: onSnippetPressed
             )
 
             // Space bar
@@ -68,19 +80,23 @@ struct FunctionRowView: View {
     }
 
     private var availableWidthWithoutReturn: CGFloat {
-        totalWidth - returnWidth - spacing * 5  // 5 gaps for 4 buttons + edges
+        totalWidth - returnWidth - spacing * 6  // 6 gaps for 5 buttons + edges
     }
 
     private var toggleWidth: CGFloat {
-        availableWidthWithoutReturn * 0.30
+        availableWidthWithoutReturn * 0.26
     }
 
     private var commaWidth: CGFloat {
-        availableWidthWithoutReturn * 0.14
+        availableWidthWithoutReturn * 0.12
+    }
+
+    private var snippetWidth: CGFloat {
+        availableWidthWithoutReturn * 0.13
     }
 
     private var spaceWidth: CGFloat {
-        availableWidthWithoutReturn * 0.56
+        availableWidthWithoutReturn * 0.49
     }
 }
 
@@ -97,7 +113,7 @@ struct FunctionKeyView: View {
             .frame(width: width, height: height)
             .background(
                 RoundedRectangle(cornerRadius: KeyboardMetrics.keyCornerRadius)
-                    .fill(isPressed ? Color(.systemGray4) : Color(.systemGray5))
+                    .fill(isPressed ? Color(.systemGray5) : Color(.systemBackground))
             )
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -124,7 +140,8 @@ struct FunctionKeyView: View {
             onToggleModePressed: { print("Toggle") },
             onCommaPressed: { print("Comma") },
             onSpacePressed: { print("Space") },
-            onReturnPressed: { print("Return") }
+            onReturnPressed: { print("Return") },
+            onSnippetPressed: { print("Snippet") }
         )
 
         Text("Symbol Mode")
@@ -135,7 +152,8 @@ struct FunctionKeyView: View {
             onToggleModePressed: { print("Toggle") },
             onCommaPressed: { print("Comma") },
             onSpacePressed: { print("Space") },
-            onReturnPressed: { print("Return") }
+            onReturnPressed: { print("Return") },
+            onSnippetPressed: { print("Snippet") }
         )
     }
     .padding()

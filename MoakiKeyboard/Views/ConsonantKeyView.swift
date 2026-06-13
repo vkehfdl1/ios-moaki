@@ -5,6 +5,32 @@ struct KeyView: View {
     let keySize: CGSize
     let isPressed: Bool
     let previewVowel: Jungseong?
+    /// Channel B — small fixed vowel hint shown above the consonant glyph
+    /// (popup mode). nil means no hint (e.g. side symbol cells with no
+    /// mapping, or the 4 tail consonants ㅎㅃㅆㅋ).
+    var vowelHint: Jungseong? = nil
+    /// True when the user is mid-gesture in SELECTING phase (anywhere on the
+    /// keyboard). Brightens this key's fixed vowel hint so the user knows
+    /// vowels are now "live".
+    var isInSelecting: Bool = false
+    /// True when popup mode is enabled at all - used to reserve a uniform
+    /// hint-row height across consonant cells so glyphs line up even when a
+    /// particular cell has no hint mapping.
+    var reservesHintSpace: Bool = false
+    /// Channel A — directional vowel that should be rendered as a large
+    /// prominent overlay on top of this cell during SELECTING. nil means
+    /// this cell is not one of the 6 directional adjacent cells.
+    var directionalOverlay: Jungseong? = nil
+    /// True when the user is mid-drag in popup mode and the finger is
+    /// currently over this cell. Renders the cell in INVERTED styling
+    /// (dark background + light foreground) as a live slide highlight.
+    /// Never set on the source cell or in non-popup mode.
+    var isSlideHighlighted: Bool = false
+    /// True when this cell is the source consonant slot of the active
+    /// SELECTING popup. The key label is suppressed (finger covers it).
+    var hideContent: Bool = false
+    var hintOptions: [VowelOption] = []
+    var hintAnchor: CGPoint? = nil
     let longPressNumber: String?
     let onLongPress: ((String) -> Void)?
     let onBackspacePressStart: (() -> Void)?
@@ -16,6 +42,16 @@ struct KeyView: View {
     @State private var isHighlighted = false
     @State private var showNumberPopup = false
     @State private var longPressTimer: Timer?
+    /// This key's origin in the named grid coordinate space, captured each
+    /// frame so we can translate local DragGesture points → grid coords.
+    @State private var keyOriginInGrid: CGPoint = .zero
+
+    /// Translate a point in this key's local coordinate space to the named
+    /// grid coordinate space using the cached key origin.
+    private func toGridCoords(_ local: CGPoint) -> CGPoint {
+        CGPoint(x: local.x + keyOriginInGrid.x,
+                y: local.y + keyOriginInGrid.y)
+    }
 
     var body: some View {
         ZStack {
@@ -24,10 +60,25 @@ struct KeyView: View {
                 .fill(backgroundColor)
                 .shadow(color: .black.opacity(0.2), radius: isPressed ? 0 : 1, y: isPressed ? 0 : 1)
 
-            // Key label
-            keyLabel
+            // Key label — suppressed when this cell is the SELECTING source
+            // (finger covers it; spec says "hidden visual").
+            if !hideContent {
+                keyLabel
+            }
         }
         .frame(width: keySize.width, height: keySize.height)
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        keyOriginInGrid = proxy.frame(in: .named(KeyGridView.gridCoordinateSpace)).origin
+                    }
+                    .onChange(of: proxy.frame(in: .named(KeyGridView.gridCoordinateSpace))) { _, new in
+                        keyOriginInGrid = new.origin
+                    }
+            }
+        )
+        .overlay(vowelHintsOverlay)
         .overlay(numberPopupOverlay, alignment: .top)
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -37,7 +88,7 @@ struct KeyView: View {
                         if isBackspaceKey {
                             onBackspacePressStart?()
                         } else {
-                            onGestureStart(value.startLocation)
+                            onGestureStart(toGridCoords(value.startLocation))
                             startLongPressTimer()
                         }
                     }
@@ -50,7 +101,7 @@ struct KeyView: View {
                         cancelLongPressTimer()
                     }
 
-                    onGestureMove(value.location)
+                    onGestureMove(toGridCoords(value.location))
                 }
                 .onEnded { _ in
                     isHighlighted = false
@@ -77,31 +128,46 @@ struct KeyView: View {
     private var keyLabel: some View {
         switch content {
         case .consonant(let consonant):
-            VStack(spacing: 2) {
-                Text(String(consonant.compatibilityCharacter))
+            // In SELECTING phase, if this cell maps to a vowel (either a
+            // directional adjacent cell or a fixed-vowel cell), the cell
+            // morphs into a vowel button: the consonant is replaced by the
+            // vowel character, rendered prominently and centered. Otherwise
+            // (idle, or selecting but non-vowel cell), only the consonant
+            // glyph is shown — no small gray hint stacked above.
+            if isInSelecting, let v = activeVowelForCell {
+                Text(String(v.compatibilityCharacter))
                     .font(.system(size: keySize.height * 0.4, weight: .medium))
-                    .foregroundColor(textColor)
-
-                // Show preview vowel when dragging
-                if let vowel = previewVowel {
-                    Text(String(vowel.compatibilityCharacter))
-                        .font(.system(size: keySize.height * 0.25))
-                        .foregroundColor(.blue)
+                    .foregroundColor(vowelTextColor)
+            } else {
+                VStack(spacing: 1) {
+                    Text(String(consonant.compatibilityCharacter))
+                        .font(.system(size: keySize.height * 0.4, weight: .medium))
+                        .foregroundColor(textColor)
+                    // Show preview vowel when dragging (legacy gesture mode)
+                    if let vowel = previewVowel {
+                        Text(String(vowel.compatibilityCharacter))
+                            .font(.system(size: keySize.height * 0.25))
+                            .foregroundColor(.blue)
+                    }
                 }
             }
-
         case .symbol(let symbol):
             Text(symbol)
                 .font(.system(size: keySize.height * 0.4, weight: .medium))
                 .foregroundColor(textColor)
-
         case .backspace:
             Image(systemName: "delete.left")
                 .font(.system(size: keySize.height * 0.35))
                 .foregroundColor(textColor)
+        case .vowel(let v):
+            Text(String(v.compatibilityCharacter))
+                .font(.system(size: keySize.height * 0.4, weight: .medium))
+                .foregroundColor(textColor)
+        case .hidden:
+            // Invisible slot (used where the finger is currently resting).
+            EmptyView()
         }
     }
-
     @ViewBuilder
     private var numberPopupOverlay: some View {
         if showNumberPopup, let number = longPressNumber {
@@ -118,19 +184,86 @@ struct KeyView: View {
                 .offset(y: -keySize.height * 0.8)
         }
     }
+    // MARK: - Vowel direction hints (composed syllables; progressive while dragging)
+
+    @ViewBuilder
+    private var vowelHintsOverlay: some View {
+        if isPressed, case .consonant(let cho) = content, !hintOptions.isEmpty {
+            let cellW = keySize.width + KeyboardMetrics.keySpacing
+            let cellH = keySize.height + KeyboardMetrics.keySpacing
+            let center = CGPoint(x: keySize.width / 2, y: keySize.height / 2)
+            // Anchor on the grid cell currently under the finger (the consonant key itself
+            // until a stroke moves away), snapped cell-to-cell so it never drifts. Each hint
+            // then sits one cell over in its next-stroke direction — exactly where the finger
+            // must move to select that vowel — so position matches the gesture logic.
+            // hintAnchor is in grid coords (see toGridCoords). Translate back
+            // to local before the cell-snap math expects local distances.
+            let anchorLocal = hintAnchor.map { CGPoint(x: $0.x - keyOriginInGrid.x,
+                                                       y: $0.y - keyOriginInGrid.y) }
+            let raw = anchorLocal ?? center
+            let col = ((raw.x - center.x) / cellW).rounded()
+            let row = ((raw.y - center.y) / cellH).rounded()
+            let anchor = CGPoint(x: center.x + col * cellW, y: center.y + row * cellH)
+            ZStack {
+                ForEach(hintOptions, id: \.direction) { option in
+                    let v = option.direction.unitVector
+                    Text(String(HangulConstants.composeSyllable(choseong: cho, jungseong: option.vowel)))
+                        .font(.system(size: keySize.height * 0.4, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: keySize.width, height: keySize.height)
+                        .background(
+                            RoundedRectangle(cornerRadius: KeyboardMetrics.keyCornerRadius)
+                                .fill(Color(red: 0.282, green: 0.651, blue: 0.635).opacity(0.92))
+                                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                        )
+                        .position(x: anchor.x + v.dx * cellW,
+                                  y: anchor.y + v.dy * cellH)
+                }
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// Resolved vowel for this cell during SELECTING. Directional adjacency
+    /// wins over the fixed-vowel hint (matches the input-logic ordering).
+    /// nil when this cell maps to no vowel in the current phase.
+    private var activeVowelForCell: Jungseong? {
+        return directionalOverlay ?? vowelHint
+    }
+
+    /// Foreground color for the vowel character when this cell is rendered
+    /// as a vowel button (SELECTING phase). Inverted under slide highlight.
+    private var vowelTextColor: Color {
+        if isSlideHighlighted { return Color(.systemBackground) }
+        return Color(red: 0.282, green: 0.651, blue: 0.635)
+    }
 
     private var backgroundColor: Color {
+        // Live slide highlight inverts the cell.
+        if isSlideHighlighted {
+            return Color.primary
+        }
         switch content {
         case .backspace:
-            return isPressed || isHighlighted ? Color(.systemGray3) : Color(.systemGray5)
+            return isPressed || isHighlighted ? Color(.systemGray4) : Color(.systemGray6)
         case .symbol:
-            return isPressed || isHighlighted ? Color(.systemGray3) : Color(.systemGray5)
+            return isPressed || isHighlighted ? Color(.systemGray4) : Color(.systemGray6)
         case .consonant:
-            return isPressed || isHighlighted ? Color(.systemGray4) : Color(.secondarySystemBackground)
+            return isPressed || isHighlighted ? Color(.systemGray5) : Color(.systemBackground)
+        case .vowel:
+            // Highlighted accent for the popup vowels so they read as "active".
+            return isPressed || isHighlighted
+                ? Color(red: 0.20, green: 0.55, blue: 0.55)
+                : Color(red: 0.282, green: 0.651, blue: 0.635)
+        case .hidden:
+            return Color.clear
         }
     }
 
     private var textColor: Color {
+        // Inverted styling: light text on dark background.
+        if isSlideHighlighted { return Color(.systemBackground) }
+        if case .vowel = content { return .white }
         return .primary
     }
 
@@ -142,7 +275,7 @@ struct KeyView: View {
     }
 
     private func startLongPressTimer() {
-        guard longPressNumber != nil else { return }
+        guard KeyboardSettings.shared.enableLongPressNumber, longPressNumber != nil else { return }
 
         longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
             showNumberPopup = true

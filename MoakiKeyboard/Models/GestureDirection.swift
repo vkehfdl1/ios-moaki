@@ -68,6 +68,20 @@ enum GestureDirection: String, CaseIterable {
         !isCardinal
     }
 
+    /// Unit offset for placing on-key hints (iOS y-axis: up is negative).
+    var unitVector: (dx: CGFloat, dy: CGFloat) {
+        switch self {
+        case .right: return (1, 0)
+        case .left: return (-1, 0)
+        case .up: return (0, -1)
+        case .down: return (0, 1)
+        case .upRight: return (1, -1)
+        case .upLeft: return (-1, -1)
+        case .downRight: return (1, 1)
+        case .downLeft: return (-1, 1)
+        }
+    }
+
     /// Check if two directions are exactly opposite (e.g., up↔down, left↔right)
     func isOpposite(to other: GestureDirection) -> Bool {
         switch (self, other) {
