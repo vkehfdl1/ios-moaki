@@ -4,8 +4,12 @@ import CoreGraphics
 /// Content type for each key in the keyboard grid
 enum KeyContent: Equatable {
     case consonant(Choseong)
+    case vowel(Jungseong)
     case symbol(String)
     case backspace
+    /// Slot rendered as empty (used in vowel-popup mode to hide the originating
+    /// consonant key beneath the user's finger).
+    case hidden
 }
 
 enum KeyboardMetrics {
@@ -60,10 +64,17 @@ enum KeyboardMetrics {
     }
 
     // Get key width for specific column and row
-    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat) -> CGFloat {
+    static func keyWidth(for column: Int, row: Int, centerKeyWidth: CGFloat, isVowelPopup: Bool = false) -> CGFloat {
         let sideWidth = centerKeyWidth * symbolWidthRatio
 
-        // Row 3: backspace (col 5) fills remaining space to match row 0-2 width
+        // Vowel popup row 3 is 7 columns: [* ㅡ ㅐ ㅔ ㅞ ㅟ ㅢ]
+        // Layout matches rows 0-2 exactly (side, 5 center, side).
+        if isVowelPopup && row == 3 {
+            if column == 0 || column == 6 { return sideWidth }
+            return centerKeyWidth
+        }
+
+        // Row 3 (consonant/symbol mode): backspace (col 5) fills remaining space to match row 0-2 width
         // Row 0-2 width: 2*sideWidth + 5*centerKeyWidth + 6*spacing
         // Row 3 without backspace: sideWidth + 4*centerKeyWidth + 5*spacing
         // backspaceWidth = sideWidth + centerKeyWidth + spacing
@@ -80,8 +91,15 @@ enum KeyboardMetrics {
     }
 
     // Get number of columns for a row in the active layout.
-    static func columnCount(for row: Int, isSymbolMode: Bool) -> Int {
-        let layout = isSymbolMode ? symbolLayout : koreanLayout
+    static func columnCount(for row: Int, isSymbolMode: Bool, isVowelPopup: Bool = false) -> Int {
+        let layout: [[KeyContent]]
+        if isSymbolMode {
+            layout = symbolLayout
+        } else if isVowelPopup {
+            layout = vowelPopupLayout
+        } else {
+            layout = koreanLayout
+        }
         guard row >= 0 && row < layout.count else { return 0 }
         return layout[row].count
     }
@@ -117,6 +135,23 @@ enum KeyboardMetrics {
         [.symbol("/"), .symbol("?"), .symbol("*"), .symbol("0"), .symbol("#"), .backspace],
     ]
 
+    // Vowel popup mode layout (active when KeyboardSettings.useVowelPopupMode == true).
+    // Triggered when the user touches a consonant in koreanLayout; the touched
+    // slot is overridden to .hidden at runtime so the finger isn't covered.
+    // Row 3 is 7 columns (vs koreanLayout's 6) — KeyGridView handles variable
+    // row width. ⌫ stays in col 6 just like row 0-2's symbol column.
+    //
+    // Row 0:  ~  ㅒ ㅖ ㅘ ㅙ ㅚ  !
+    // Row 1:  ^  ㅑ ㅕ ㅛ ㅠ ㅝ  ?
+    // Row 2:  ;  ㅏ ㅓ ㅗ ㅜ ㅣ  .
+    // Row 3:  *  ㅡ ㅐ ㅔ ㅞ ㅟ ㅢ  (no ⌫ in popup row 3 — release on side keys reverts)
+    static let vowelPopupLayout: [[KeyContent]] = [
+        [.symbol("~"), .vowel(.ㅒ), .vowel(.ㅖ), .vowel(.ㅘ), .vowel(.ㅙ), .vowel(.ㅚ), .symbol("!")],
+        [.symbol("^"), .vowel(.ㅑ), .vowel(.ㅕ), .vowel(.ㅛ), .vowel(.ㅠ), .vowel(.ㅝ), .symbol("?")],
+        [.symbol(";"), .vowel(.ㅏ), .vowel(.ㅓ), .vowel(.ㅗ), .vowel(.ㅜ), .vowel(.ㅣ), .symbol(".")],
+        [.symbol("*"), .vowel(.ㅡ), .vowel(.ㅐ), .vowel(.ㅔ), .vowel(.ㅞ), .vowel(.ㅟ), .vowel(.ㅢ)],
+    ]
+
     // Long press number mapping for Korean mode
     // Only basic consonants (row 1-2) have number mappings
     // ㅂㅈㄷㄱㅅ → 1 2 3 4 5
@@ -129,8 +164,15 @@ enum KeyboardMetrics {
     ]
 
     // Get key content at grid position for given mode
-    static func keyContent(at row: Int, column: Int, isSymbolMode: Bool) -> KeyContent? {
-        let layout = isSymbolMode ? symbolLayout : koreanLayout
+    static func keyContent(at row: Int, column: Int, isSymbolMode: Bool, isVowelPopup: Bool = false) -> KeyContent? {
+        let layout: [[KeyContent]]
+        if isSymbolMode {
+            layout = symbolLayout
+        } else if isVowelPopup {
+            layout = vowelPopupLayout
+        } else {
+            layout = koreanLayout
+        }
         guard row >= 0 && row < layout.count,
               column >= 0 && column < layout[row].count else {
             return nil
