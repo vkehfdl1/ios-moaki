@@ -67,5 +67,8 @@ class KeyboardSettings: ObservableObject {
         self.useGridRecognition = defaults.bool(forKey: Keys.useGridRecognition)
         self.enableLongPressNumber = defaults.bool(forKey: Keys.enableLongPressNumber)
         self.useVowelPopupMode = defaults.bool(forKey: Keys.useVowelPopupMode)
+        // TODO: remove diagnostic
+        let usingGroup = (UserDefaults(suiteName: KeyboardSettings.appGroupSuite) != nil)
+        NSLog("[POPUP_DIAG] suite=\(usingGroup) useVowelPopupMode=\(self.useVowelPopupMode)")
     }
 }

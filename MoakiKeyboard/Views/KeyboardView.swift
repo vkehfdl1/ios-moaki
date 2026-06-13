@@ -330,6 +330,8 @@ class KeyboardViewModel: ObservableObject {
         // a tap there must attach as 받침 via the composer's existing
         // routing (preserves the b4d258e fix). Drop straight through to
         // inputConsonant.
+        // TODO: remove diagnostic
+        NSLog("[POPUP_DIAG] gestureStarted r=\(row) c=\(column) useVowelPopupMode=\(KeyboardSettings.shared.useVowelPopupMode) isSymbolMode=\(isSymbolMode)")
         if !isSymbolMode,
            KeyboardSettings.shared.useVowelPopupMode,
            case .consonant(let cho) = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: false) ?? .symbol("") {
