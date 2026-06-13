@@ -94,6 +94,23 @@ struct ContentView: View {
                         )
                     }
 
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "slider.horizontal.3")
+                            Text("키보드 설정")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.blue, lineWidth: 1.5)
+                        )
+                    }
+
                     Button(action: openSettings) {
                         HStack {
                             Image(systemName: "gear")
