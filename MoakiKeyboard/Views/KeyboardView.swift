@@ -377,6 +377,12 @@ class KeyboardViewModel: ObservableObject {
 
     // MARK: - Vowel Popup Mode Handling
 
+    /// Heuristic for transitioning .vowel → .batchim while dragging:
+    /// - The user must first cross a vowel cell (so we know which vowel they want).
+    /// - Then dragging back over the originating consonant slot (rendered as
+    ///   `.hidden`) flips the layout to koreanLayout so they can choose a
+    ///   batchim consonant. This matches the natural "back-and-up" motion
+    ///   people make on small keyboards.
     private func handlePopupMove(at point: CGPoint) {
         guard let cell = cell(at: point) else { return }
         popupCurrentCell = cell
@@ -386,17 +392,26 @@ class KeyboardViewModel: ObservableObject {
             return
         case .vowel(let origin, let cho):
             if let vowel = vowelAt(row: cell.row, column: cell.column) {
+                // Record the vowel the finger is currently over.
                 popupLastVowelOver = vowel
-            } else if let last = popupLastVowelOver,
-                      consonantAt(row: cell.row, column: cell.column) != nil {
-                popupPhase = .batchim(origin: origin, choseong: cho, jungseong: last)
+            } else if popupLastVowelOver != nil,
+                      cell.row == origin.row && cell.column == origin.column {
+                // Dragged back to the originating (hidden) consonant cell —
+                // morph the layout to consonants for batchim selection.
+                if let last = popupLastVowelOver {
+                    popupPhase = .batchim(origin: origin, choseong: cho, jungseong: last)
+                    triggerHapticFeedback()
+                }
             }
         case .batchim(let origin, let cho, _):
-            if let vowel = vowelAt(row: cell.row, column: cell.column) {
-                popupLastVowelOver = vowel
-                popupPhase = .vowel(origin: origin, choseong: cho)
-            }
-            // If still over consonants, stay in batchim.
+            // If the finger goes back to a vowel cell (in *popup* layout —
+            // which isn't rendered here since we're in batchim phase showing
+            // koreanLayout), revert to .vowel. But because hit-testing uses
+            // the *active* layout (koreanLayout in batchim phase), vowelAt
+            // never matches here. Stay in batchim, tracking the consonant
+            // under the finger via popupCurrentCell for the release commit.
+            _ = origin
+            _ = cho
         }
     }
 
@@ -449,7 +464,12 @@ class KeyboardViewModel: ObservableObject {
               let kh = gridKeyHeight else { return nil }
 
         let spacing = KeyboardMetrics.keySpacing
-        let isVowelPopup = popupPhase != .consonant
+        // Hit-test against the *currently rendered* layout — popup in .vowel
+        // phase, koreanLayout in .batchim and .consonant phases.
+        let isVowelPopup: Bool = {
+            if case .vowel = popupPhase { return true }
+            return false
+        }()
 
         // Identify which row the point falls in (rows are uniform height).
         var y: CGFloat = 0

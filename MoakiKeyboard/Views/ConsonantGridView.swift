@@ -21,16 +21,23 @@ struct KeyGridView: View {
     let onGestureMove: (CGPoint) -> Void
     let onGestureEnd: (Int, Int) -> Void
 
-    /// True when the grid is showing the vowel popup layout.
-    private var isVowelPopup: Bool { popupPhase != .consonant }
+    /// True when the grid is showing the vowel popup layout. In .batchim
+    /// phase we show koreanLayout (consonants) so the user can pick a batchim.
+    private var isVowelPopup: Bool {
+        if case .vowel = popupPhase { return true }
+        return false
+    }
 
     /// (row, column) of the originating consonant when in popup mode.
-    /// Its slot is rendered as .hidden so the user's finger isn't covered.
+    /// Its slot is rendered as .hidden in the .vowel phase so the user's
+    /// finger isn't covered by their own touched key. In .batchim phase the
+    /// originating consonant comes back (it'll be selected if the user
+    /// releases on it).
     private var popupOrigin: (row: Int, column: Int)? {
         switch popupPhase {
         case .consonant: return nil
         case .vowel(let o, _): return o
-        case .batchim(let o, _, _): return o
+        case .batchim: return nil
         }
     }
 
