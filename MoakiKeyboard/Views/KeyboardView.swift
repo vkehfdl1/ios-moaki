@@ -391,11 +391,13 @@ class KeyboardViewModel: ObservableObject {
         case .consonant:
             return
         case .vowel(let origin, let cho):
-            if let vowel = vowelAt(row: cell.row, column: cell.column) {
-                // Record the vowel the finger is currently over.
+            let isOriginCell = cell.row == origin.row && cell.column == origin.column
+            if !isOriginCell, let vowel = vowelAt(row: cell.row, column: cell.column) {
+                // Record the vowel the finger is currently over. The origin
+                // cell is rendered as .hidden so we don't treat it as a vowel
+                // even though the popup layout has one there.
                 popupLastVowelOver = vowel
-            } else if popupLastVowelOver != nil,
-                      cell.row == origin.row && cell.column == origin.column {
+            } else if popupLastVowelOver != nil, isOriginCell {
                 // Dragged back to the originating (hidden) consonant cell —
                 // morph the layout to consonants for batchim selection.
                 if let last = popupLastVowelOver {
@@ -419,6 +421,7 @@ class KeyboardViewModel: ObservableObject {
         // Capture state, then reset before any input (input also triggers UI redraw).
         let phase = popupPhase
         let cell = popupCurrentCell
+        let lastVowelOver = popupLastVowelOver
         popupPhase = .consonant
         popupCurrentCell = nil
         popupLastVowelOver = nil
@@ -428,13 +431,27 @@ class KeyboardViewModel: ObservableObject {
         switch phase {
         case .consonant:
             break
-        case .vowel(_, let cho):
-            // Released on a vowel cell → C + V.
-            if let vowel = vowelAt(row: cell.row, column: cell.column) {
+        case .vowel(let origin, let cho):
+            // Released on the originating (hidden) consonant cell with no
+            // vowel ever crossed → treat as a plain consonant tap. The
+            // composer will auto-attach as 종성/batchim if the current
+            // syllable already has 중성 (e.g. ㅇ→ㅏ→tap ㄹ ⇒ 알).
+            let isOriginCell = cell.row == origin.row && cell.column == origin.column
+            if isOriginCell && lastVowelOver == nil {
+                inputConsonant(cho)
+            } else if !isOriginCell, let vowel = vowelAt(row: cell.row, column: cell.column) {
+                // Released on a vowel cell → C + V.
                 inputConsonant(cho)
                 inputVowel(vowel)
+            } else if let last = lastVowelOver {
+                // Released somewhere ambiguous (side symbol, hidden origin
+                // after crossing vowels, etc.) — commit C + last vowel under
+                // the finger so the user gets the syllable they were aiming for.
+                inputConsonant(cho)
+                inputVowel(last)
             } else if let content = KeyboardMetrics.keyContent(at: cell.row, column: cell.column, isSymbolMode: false, isVowelPopup: true) {
-                // Released on a side symbol key — commit symbol (skip the consonant).
+                // Released on a side symbol key with no vowel selection —
+                // commit the symbol (skip the consonant).
                 switch content {
                 case .symbol(let s): inputSymbol(s)
                 case .backspace:     deleteBackward()
