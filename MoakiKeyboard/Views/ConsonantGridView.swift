@@ -7,7 +7,7 @@ struct KeyGridView: View {
     let isSymbolMode: Bool
     /// Vowel-popup phase (see PopupPhase). When non-.consonant, the grid
     /// renders the vowel popup layout instead of koreanLayout.
-    var popupPhase: PopupPhase = .consonant
+    var popupPhase: PopupPhase = .idle
     let activeKey: (row: Int, column: Int)?
     let previewVowel: Jungseong?
     var hintOptions: [VowelOption] = []
@@ -21,57 +21,51 @@ struct KeyGridView: View {
     let onGestureMove: (CGPoint) -> Void
     let onGestureEnd: (Int, Int) -> Void
 
-    /// True when the grid is showing the vowel popup layout. In .batchim
-    /// phase we show koreanLayout (consonants) so the user can pick a batchim.
-    private var isVowelPopup: Bool {
-        if case .vowel = popupPhase { return true }
-        return false
+    /// In the new STATIC popup design the grid never morphs — these
+    /// properties were used by the old cascade reflow and are gone.
+    /// `vowelHintsVisible` brightens the per-key vowel hint labels while
+    /// the user is mid-gesture (SELECTING phase).
+    private var vowelHintsVisible: Bool {
+        // Show hints any time popup mode is enabled (gray hints always
+        // visible; the SELECTING phase makes them brighter via KeyView's
+        // own logic). We keep the prop simple: feature gated by setting.
+        return KeyboardSettings.shared.useVowelPopupMode
     }
 
-    /// (row, column) of the originating consonant when in popup mode.
-    /// Its slot is rendered as .hidden in the .vowel phase so the user's
-    /// finger isn't covered by their own touched key. In .batchim phase the
-    /// originating consonant comes back (it'll be selected if the user
-    /// releases on it).
-    private var popupOrigin: (row: Int, column: Int)? {
-        switch popupPhase {
-        case .consonant: return nil
-        case .vowel(let o, _): return o
-        case .batchim: return nil
-        }
+    private var isInSelecting: Bool {
+        if case .selecting = popupPhase { return true }
+        return false
     }
 
     var body: some View {
         VStack(spacing: KeyboardMetrics.keySpacing) {
             ForEach(0..<KeyboardMetrics.gridRows, id: \.self) { row in
                 HStack(spacing: KeyboardMetrics.keySpacing) {
-                    let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup, popupOrigin: popupOrigin)
+                    let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode)
                     ForEach(0..<columnCount, id: \.self) { column in
-                        let rawContent = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup, popupOrigin: popupOrigin)
-                        // Hide the consonant cell that originated the popup so the
-                        // finger isn't covered by the morphed-away key.
-                        let content: KeyContent = {
-                            if let origin = popupOrigin, origin.row == row && origin.column == column {
-                                return .hidden
-                            }
-                            return rawContent ?? .symbol("")
-                        }()
+                        let content: KeyContent = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode) ?? .symbol("")
                         let isActive = activeKey?.row == row && activeKey?.column == column
-                        let longPressNumber = (isSymbolMode || isVowelPopup) ? nil : KeyboardMetrics.longPressNumber(at: row, column: column)
+                        let longPressNumber = isSymbolMode ? nil : KeyboardMetrics.longPressNumber(at: row, column: column)
                         let width = KeyboardMetrics.keyWidth(
                             for: column,
                             row: row,
-                            centerKeyWidth: centerKeyWidth,
-                            isVowelPopup: isVowelPopup
+                            centerKeyWidth: centerKeyWidth
                         )
-
+                        // Static vowel hint for this slot (popup-mode feature).
+                        // Suppressed in symbol mode.
+                        let vowelHint: Jungseong? = (!isSymbolMode && vowelHintsVisible)
+                            ? KeyboardMetrics.vowelFor(row: row, column: column)
+                            : nil
                         KeyView(
                             content: content,
                             keySize: CGSize(width: width, height: keyHeight),
                             isPressed: isActive,
                             previewVowel: isActive ? previewVowel : nil,
-                            hintOptions: (isActive && !isVowelPopup) ? hintOptions : [],
-                            hintAnchor: (isActive && !isVowelPopup) ? hintAnchor : nil,
+                            vowelHint: vowelHint,
+                            isInSelecting: isInSelecting,
+                            reservesHintSpace: !isSymbolMode && vowelHintsVisible,
+                            hintOptions: isActive ? hintOptions : [],
+                            hintAnchor: isActive ? hintAnchor : nil,
                             longPressNumber: longPressNumber,
                             onLongPress: { number in
                                 onLongPressNumber(number)

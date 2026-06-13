@@ -5,6 +5,17 @@ struct KeyView: View {
     let keySize: CGSize
     let isPressed: Bool
     let previewVowel: Jungseong?
+    /// Static vowel hint shown above the consonant glyph (vowel-popup mode).
+    /// nil means no hint (e.g. side symbol cells with no mapping).
+    var vowelHint: Jungseong? = nil
+    /// True when the user is mid-gesture in SELECTING phase (anywhere on the
+    /// keyboard). Brightens this key's vowel hint so the user knows vowels
+    /// are now "live".
+    var isInSelecting: Bool = false
+    /// True when popup mode is enabled at all - used to reserve a uniform
+    /// hint-row height across consonant cells so glyphs line up even when a
+    /// particular cell has no hint mapping.
+    var reservesHintSpace: Bool = false
     var hintOptions: [VowelOption] = []
     var hintAnchor: CGPoint? = nil
     let longPressNumber: String?
@@ -101,24 +112,27 @@ struct KeyView: View {
     private var keyLabel: some View {
         switch content {
         case .consonant(let consonant):
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
+                // Static vowel hint (popup mode). Gray and small; brightens
+                // during SELECTING. Reserves layout space when no hint.
+                vowelHintLabel
                 Text(String(consonant.compatibilityCharacter))
                     .font(.system(size: keySize.height * 0.4, weight: .medium))
                     .foregroundColor(textColor)
-
-                // Show preview vowel when dragging
+                // Show preview vowel when dragging (legacy gesture mode)
                 if let vowel = previewVowel {
                     Text(String(vowel.compatibilityCharacter))
                         .font(.system(size: keySize.height * 0.25))
                         .foregroundColor(.blue)
                 }
             }
-
         case .symbol(let symbol):
-            Text(symbol)
-                .font(.system(size: keySize.height * 0.4, weight: .medium))
-                .foregroundColor(textColor)
-
+            VStack(spacing: 1) {
+                vowelHintLabel
+                Text(symbol)
+                    .font(.system(size: keySize.height * 0.4, weight: .medium))
+                    .foregroundColor(textColor)
+            }
         case .backspace:
             Image(systemName: "delete.left")
                 .font(.system(size: keySize.height * 0.35))
@@ -130,6 +144,24 @@ struct KeyView: View {
         case .hidden:
             // Invisible slot (used where the finger is currently resting).
             EmptyView()
+        }
+    }
+
+    /// Tiny vowel-hint label. Reserves layout slot even when nil so the
+    /// consonant glyph below stays vertically aligned across the grid.
+    @ViewBuilder
+    private var vowelHintLabel: some View {
+        if let v = vowelHint {
+            Text(String(v.compatibilityCharacter))
+                .font(.system(size: keySize.height * 0.22, weight: .medium))
+                .foregroundColor(isInSelecting
+                                 ? Color(red: 0.282, green: 0.651, blue: 0.635).opacity(0.95)
+                                 : Color.secondary.opacity(0.45))
+        } else if reservesHintSpace {
+            // Reserve the same vertical space so consonants align.
+            Text(" ")
+                .font(.system(size: keySize.height * 0.22, weight: .medium))
+                .foregroundColor(.clear)
         }
     }
 
