@@ -79,7 +79,6 @@ struct KeyView: View {
             }
         )
         .overlay(vowelHintsOverlay)
-        .overlay(directionalOverlayView)
         .overlay(numberPopupOverlay, alignment: .top)
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -129,27 +128,33 @@ struct KeyView: View {
     private var keyLabel: some View {
         switch content {
         case .consonant(let consonant):
-            VStack(spacing: 1) {
-                // Static vowel hint (popup mode). Gray and small; brightens
-                // during SELECTING. Reserves layout space when no hint.
-                vowelHintLabel
-                Text(String(consonant.compatibilityCharacter))
+            // In SELECTING phase, if this cell maps to a vowel (either a
+            // directional adjacent cell or a fixed-vowel cell), the cell
+            // morphs into a vowel button: the consonant is replaced by the
+            // vowel character, rendered prominently and centered. Otherwise
+            // (idle, or selecting but non-vowel cell), only the consonant
+            // glyph is shown — no small gray hint stacked above.
+            if isInSelecting, let v = activeVowelForCell {
+                Text(String(v.compatibilityCharacter))
                     .font(.system(size: keySize.height * 0.4, weight: .medium))
-                    .foregroundColor(textColor)
-                // Show preview vowel when dragging (legacy gesture mode)
-                if let vowel = previewVowel {
-                    Text(String(vowel.compatibilityCharacter))
-                        .font(.system(size: keySize.height * 0.25))
-                        .foregroundColor(.blue)
+                    .foregroundColor(vowelTextColor)
+            } else {
+                VStack(spacing: 1) {
+                    Text(String(consonant.compatibilityCharacter))
+                        .font(.system(size: keySize.height * 0.4, weight: .medium))
+                        .foregroundColor(textColor)
+                    // Show preview vowel when dragging (legacy gesture mode)
+                    if let vowel = previewVowel {
+                        Text(String(vowel.compatibilityCharacter))
+                            .font(.system(size: keySize.height * 0.25))
+                            .foregroundColor(.blue)
+                    }
                 }
             }
         case .symbol(let symbol):
-            VStack(spacing: 1) {
-                vowelHintLabel
-                Text(symbol)
-                    .font(.system(size: keySize.height * 0.4, weight: .medium))
-                    .foregroundColor(textColor)
-            }
+            Text(symbol)
+                .font(.system(size: keySize.height * 0.4, weight: .medium))
+                .foregroundColor(textColor)
         case .backspace:
             Image(systemName: "delete.left")
                 .font(.system(size: keySize.height * 0.35))
@@ -163,23 +168,6 @@ struct KeyView: View {
             EmptyView()
         }
     }
-
-    /// Tiny vowel-hint label. Reserves layout slot even when nil so the
-    /// consonant glyph below stays vertically aligned across the grid.
-    @ViewBuilder
-    private var vowelHintLabel: some View {
-        if let v = vowelHint {
-            Text(String(v.compatibilityCharacter))
-                .font(.system(size: keySize.height * 0.22, weight: .medium))
-                .foregroundColor(hintForegroundColor)
-        } else if reservesHintSpace {
-            // Reserve the same vertical space so consonants align.
-            Text(" ")
-                .font(.system(size: keySize.height * 0.22, weight: .medium))
-                .foregroundColor(.clear)
-        }
-    }
-
     @ViewBuilder
     private var numberPopupOverlay: some View {
         if showNumberPopup, let number = longPressNumber {
@@ -196,27 +184,6 @@ struct KeyView: View {
                 .offset(y: -keySize.height * 0.8)
         }
     }
-
-    // MARK: - Channel A — directional vowel overlay (SELECTING phase)
-    /// Renders a large, prominent vowel button on top of this cell when it
-    /// is one of the 6 directional adjacent cells of the active SELECTING
-    /// source. Color matches the keyboard's accent (teal). Suppresses any
-    /// existing key glyph beneath visually.
-    @ViewBuilder
-    private var directionalOverlayView: some View {
-        if let v = directionalOverlay {
-            RoundedRectangle(cornerRadius: KeyboardMetrics.keyCornerRadius)
-                .fill(Color(red: 0.282, green: 0.651, blue: 0.635))
-                .overlay(
-                    Text(String(v.compatibilityCharacter))
-                        .font(.system(size: keySize.height * 0.5, weight: .bold))
-                        .foregroundColor(.white)
-                )
-                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
-                .allowsHitTesting(false)
-        }
-    }
-
     // MARK: - Vowel direction hints (composed syllables; progressive while dragging)
 
     @ViewBuilder
@@ -257,14 +224,18 @@ struct KeyView: View {
         }
     }
 
-    private var hintForegroundColor: Color {
-        // Inverted styling: hint becomes light against dark background.
-        if isSlideHighlighted {
-            return Color(.systemBackground).opacity(0.85)
-        }
-        return isInSelecting
-            ? Color(red: 0.282, green: 0.651, blue: 0.635).opacity(0.95)
-            : Color.secondary.opacity(0.45)
+    /// Resolved vowel for this cell during SELECTING. Directional adjacency
+    /// wins over the fixed-vowel hint (matches the input-logic ordering).
+    /// nil when this cell maps to no vowel in the current phase.
+    private var activeVowelForCell: Jungseong? {
+        return directionalOverlay ?? vowelHint
+    }
+
+    /// Foreground color for the vowel character when this cell is rendered
+    /// as a vowel button (SELECTING phase). Inverted under slide highlight.
+    private var vowelTextColor: Color {
+        if isSlideHighlighted { return Color(.systemBackground) }
+        return Color(red: 0.282, green: 0.651, blue: 0.635)
     }
 
     private var backgroundColor: Color {
