@@ -45,9 +45,9 @@ struct KeyGridView: View {
         VStack(spacing: KeyboardMetrics.keySpacing) {
             ForEach(0..<KeyboardMetrics.gridRows, id: \.self) { row in
                 HStack(spacing: KeyboardMetrics.keySpacing) {
-                    let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup)
+                    let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup, popupOrigin: popupOrigin)
                     ForEach(0..<columnCount, id: \.self) { column in
-                        let rawContent = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup)
+                        let rawContent = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup, popupOrigin: popupOrigin)
                         // Hide the consonant cell that originated the popup so the
                         // finger isn't covered by the morphed-away key.
                         let content: KeyContent = {

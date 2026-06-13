@@ -449,7 +449,7 @@ class KeyboardViewModel: ObservableObject {
                 // the finger so the user gets the syllable they were aiming for.
                 inputConsonant(cho)
                 inputVowel(last)
-            } else if let content = KeyboardMetrics.keyContent(at: cell.row, column: cell.column, isSymbolMode: false, isVowelPopup: true) {
+            } else if let content = KeyboardMetrics.keyContent(at: cell.row, column: cell.column, isSymbolMode: false, isVowelPopup: true, popupOrigin: (origin.row, origin.column)) {
                 // Released on a side symbol key with no vowel selection —
                 // commit the symbol (skip the consonant).
                 switch content {
@@ -503,7 +503,11 @@ class KeyboardViewModel: ObservableObject {
         if row < 0 { return nil }
 
         // Walk the columns of that row, summing widths, to find the column.
-        let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup)
+        let origin: (row: Int, column: Int)? = {
+            if case .vowel(let o, _) = popupPhase { return o }
+            return nil
+        }()
+        let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup, popupOrigin: origin)
         var x: CGFloat = 0
         for col in 0..<columnCount {
             let w = KeyboardMetrics.keyWidth(for: col, row: row, centerKeyWidth: center, isVowelPopup: isVowelPopup)
@@ -516,7 +520,11 @@ class KeyboardViewModel: ObservableObject {
     }
 
     private func vowelAt(row: Int, column: Int) -> Jungseong? {
-        if let c = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: false, isVowelPopup: true),
+        let origin: (row: Int, column: Int)? = {
+            if case .vowel(let o, _) = popupPhase { return o }
+            return nil
+        }()
+        if let c = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: false, isVowelPopup: true, popupOrigin: origin),
            case .vowel(let v) = c {
             return v
         }
