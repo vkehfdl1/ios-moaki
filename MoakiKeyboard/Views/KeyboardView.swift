@@ -134,18 +134,21 @@ struct KeyboardView: View {
 
 /// Vowel-popup mode interaction phases.
 ///
-/// New STATIC design (replaces the old cascade-reflow):
-/// - `.idle`: no popup gesture active. The grid renders normally.
-/// - `.selecting`: finger is down on a consonant key. Vowel hints brighten.
-///   On release: commit C + (current cell's static vowel) — or C alone if
-///   the current cell has no vowel mapping (then composer auto-routes).
-/// - `.batchim`: after selecting C+V, the finger drifted onto another
-///   consonant cell. On release there: commit C + V + (that consonant) as
-///   batchim.
+/// HYBRID design (Option 2 + 보강):
+/// - `.idle`: no popup gesture active. The grid renders normally with 15
+///   small gray fixed-vowel hints visible on the closest-to-center
+///   consonant slots.
+/// - `.selecting`: finger is down on a consonant key. The 6 directional
+///   vowels (ㅏㅓㅗㅜㅣㅡ) overlay on the (clipped) adjacent cells; the
+///   source consonant slot is hidden. On release:
+///     * source slot (no movement) → inputConsonant only (composer routes,
+///       preserves the b4d258e CV→batchim behavior)
+///     * adjacent directional cell → C + directional vowel
+///     * fixed-hint cell           → C + fixed vowel
+///     * anywhere else             → cancel (no input)
 enum PopupPhase: Equatable {
     case idle
     case selecting(origin: (row: Int, column: Int), choseong: Choseong, hasMoved: Bool, currentCell: (row: Int, column: Int)?)
-    case batchim(origin: (row: Int, column: Int), choseong: Choseong, jungseong: Jungseong)
 
     static func == (lhs: PopupPhase, rhs: PopupPhase) -> Bool {
         switch (lhs, rhs) {
@@ -153,8 +156,6 @@ enum PopupPhase: Equatable {
         case let (.selecting(lo, lc, lm, lcc), .selecting(ro, rc, rm, rcc)):
             return lo == ro && lc == rc && lm == rm
                 && lcc?.row == rcc?.row && lcc?.column == rcc?.column
-        case let (.batchim(lo, lc, lj), .batchim(ro, rc, rj)):
-            return lo == ro && lc == rc && lj == rj
         default: return false
         }
     }
@@ -397,25 +398,19 @@ class KeyboardViewModel: ObservableObject {
         resetGestureState()
     }
 
-    // MARK: - Vowel Popup Mode Handling (STATIC design)
+    // MARK: - Vowel Popup Mode Handling (HYBRID design — Option 2 + 보강)
     //
     // Phases:
     //  .idle        — popup not active
     //  .selecting   — finger down on a consonant. Track currentCell + hasMoved.
-    //                 On release: commit C + vowelFor(currentCell) when
-    //                 currentCell has a vowel mapping. Tap-in-place uses the
-    //                 source cell's own vowel.
-    //  .batchim     — after selecting committed a CV (i.e. user dragged
-    //                 onto a vowel slot, then further onto a consonant slot
-    //                 — captured by inspecting the next cell during drag).
-    //                 We DON'T enter this aggressively; the simpler tap-then-
-    //                 tap path (preserve b4d258e) covers the common 받침 case.
-    //
-    // Note: the .batchim path is reachable only if the user explicitly drags
-    // back onto a consonant cell AFTER passing through a vowel cell, in a
-    // single continuous gesture. This is intentionally narrow — the common
-    // 받침 path is "type CV, then tap consonant" which is handled by the
-    // composer's CV-OPEN routing.
+    //                 Release logic (handlePopupEnd):
+    //                   - on source slot, no movement → inputConsonant (composer
+    //                     routes; preserves b4d258e tap-as-batchim)
+    //                   - on directional adjacent cell → C + directional vowel
+    //                     (directional WINS over a coincident fixed hint —
+    //                     the user clearly aimed in that direction)
+    //                   - on fixed-hint cell → C + fixed vowel
+    //                   - elsewhere (symbol, backspace, ㅎ/ㅃ/ㅆ/ㅋ tail) → cancel
 
     private func handlePopupMove(at point: CGPoint) {
         guard let cell = cell(at: point) else { return }
@@ -426,23 +421,7 @@ class KeyboardViewModel: ObservableObject {
             return
         case .selecting(let origin, let cho, let hadMoved, _):
             let moved = hadMoved || (cell.row != origin.row || cell.column != origin.column)
-            // Track most recently-crossed vowel (used by .batchim transition).
-            if let v = KeyboardMetrics.vowelFor(row: cell.row, column: cell.column) {
-                popupLastVowelOver = v
-            }
-            // If after crossing a vowel the finger lands on a different
-            // consonant cell, transition to .batchim.
-            if let last = popupLastVowelOver,
-               let _ = consonantAt(row: cell.row, column: cell.column),
-               !(cell.row == origin.row && cell.column == origin.column) {
-                popupPhase = .batchim(origin: origin, choseong: cho, jungseong: last)
-                triggerHapticFeedback()
-                return
-            }
             popupPhase = .selecting(origin: origin, choseong: cho, hasMoved: moved, currentCell: cell)
-        case .batchim:
-            // Stay in batchim; just track the current cell (already updated).
-            break
         }
     }
 
@@ -460,69 +439,39 @@ class KeyboardViewModel: ObservableObject {
         case .idle:
             break
         case .selecting(let origin, let cho, let hasMoved, _):
-            // Hidden-vowel mechanic: use the cell-under-finger's static vowel.
-            // - Tap-in-place: cell == origin -> origin's own vowel.
-            // - Drag-to-vowel-slot: cell's vowel.
-            // - Drag-off to symbol cell with no vowel: input symbol (skip C).
-            // - Drag-off to ⌫: backspace.
-            let landingVowel = KeyboardMetrics.vowelFor(row: cell.row, column: cell.column)
-            if !hasMoved {
-                // Tap-in-place. Use origin's vowel (== cell's vowel here).
-                if let v = landingVowel {
-                    inputConsonant(cho)
-                    inputVowel(v)
-                } else {
-                    // Origin has no vowel mapping (shouldn't happen for
-                    // consonant cells, but defensive) — plain consonant.
-                    inputConsonant(cho)
-                }
-            } else {
-                if let v = landingVowel {
-                    inputConsonant(cho)
-                    inputVowel(v)
-                } else if let content = KeyboardMetrics.keyContent(at: cell.row, column: cell.column, isSymbolMode: false) {
-                    // Landed on a non-vowel cell (side symbol, backspace).
-                    switch content {
-                    case .symbol(let s):     inputSymbol(s)
-                    case .backspace:         deleteBackward()
-                    case .consonant(let c):
-                        // Landed on another consonant cell with no vowel
-                        // detected en-route. Commit C + (its vowel) so the
-                        // user still gets a syllable for that target.
-                        // (vowelFor must have returned nil above, meaning
-                        // this is a rare edge — but safe fallback.)
-                        if let v = KeyboardMetrics.vowelFor(row: cell.row, column: cell.column) {
-                            inputConsonant(cho)
-                            inputVowel(v)
-                            _ = c
-                        } else {
-                            inputConsonant(cho)
-                        }
-                    default: break
-                    }
-                }
-            }
-        case .batchim(_, let cho, let jung):
-            // Released on a consonant cell -> C + V + batchim.
-            if let bat = consonantAt(row: cell.row, column: cell.column) {
+            // Released on source slot with no movement → consonant only.
+            // This preserves the b4d258e tap path: composer routes CV-OPEN
+            // → 받침 attachment automatically.
+            if !hasMoved || (cell.row == origin.row && cell.column == origin.column) {
                 inputConsonant(cho)
-                inputVowel(jung)
-                inputConsonant(bat)
-            } else if let v = KeyboardMetrics.vowelFor(row: cell.row, column: cell.column) {
-                // Released back on a vowel slot — commit C + (new) V.
+                break
+            }
+
+            // Check directional adjacent cells FIRST — directional wins
+            // when a cell is both directional-adjacent and has a fixed hint.
+            let directionals = KeyboardMetrics.directionalVowels(around: origin.row, column: origin.column)
+            if let hit = directionals.first(where: { $0.row == cell.row && $0.column == cell.column }) {
+                inputConsonant(cho)
+                inputVowel(hit.vowel)
+                break
+            }
+
+            // Then fixed-hint cells.
+            if let v = KeyboardMetrics.fixedVowelHint(row: cell.row, column: cell.column) {
                 inputConsonant(cho)
                 inputVowel(v)
-            } else {
-                // Released on a symbol cell — commit just C + V.
-                inputConsonant(cho)
-                inputVowel(jung)
+                break
             }
+
+            // Otherwise cancel — released on a cell with no vowel mapping
+            // (symbol, backspace, or a tail consonant with no fixed hint).
+            // No input.
         }
 
         resetGestureState()
     }
 
-    /// Hit-test a point (in the keyboardGrid coordinate space) against the
+        /// Hit-test a point (in the keyboardGrid coordinate space) against the
     /// (now-static) koreanLayout. Returns the (row, column) of the cell
     /// under the point, or nil if outside the grid.
     private func cell(at point: CGPoint) -> (row: Int, column: Int)? {

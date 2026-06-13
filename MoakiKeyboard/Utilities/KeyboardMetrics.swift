@@ -128,75 +128,136 @@ enum KeyboardMetrics {
 
     // ─── Vowel popup mode (active when KeyboardSettings.useVowelPopupMode == true) ───
     //
-    // STATIC design: every consonant slot has a fixed associated hidden
-    // vowel, rendered as a small gray hint above the consonant glyph. Tap
-    // a consonant -> C + (slot vowel). Drag to another slot -> C + (target
-    // slot vowel). The grid never morphs; the vowel hints just brighten
-    // during the SELECTING phase.
+    // HYBRID design (Option 2 + 보강): two vowel display channels.
     //
-    // Mapping: vowels-by-frequency rank N maps to consonant-slot rank N
-    // (slots sorted by Euclidean distance from grid center (1.5, 3.0),
-    // ties row asc then col asc). Slots ㅟ -> (0,0) and ㅞ -> (1,0) overflow
-    // onto the ~/^ symbol cells (hybrid behavior; tap-in-place still
-    // outputs the symbol, but drag-to-here selects the vowel).
-    static let vowelsByFrequency: [Jungseong] = [
-        .ㅏ, .ㅣ, .ㅓ, .ㅗ, .ㅡ, .ㅜ, .ㅔ, .ㅐ, .ㅑ, .ㅕ, .ㅛ,
-        .ㅠ, .ㅢ, .ㅘ, .ㅝ, .ㅒ, .ㅖ, .ㅙ, .ㅚ, .ㅟ, .ㅞ
+    // Channel A — 6 directional vowels (ㅏ ㅓ ㅗ ㅜ ㅣ ㅡ): overlay on the
+    // 6 grid cells immediately adjacent to the touched consonant during the
+    // SELECTING phase. Mapping derives from VowelPattern.swift (single-stroke
+    // gestures) for muscle-memory parity with gesture mode:
+    //     →  .right     → ㅏ
+    //     ←  .left      → ㅓ
+    //     ↑  .up        → ㅗ
+    //     ↓  .down      → ㅜ
+    //     ↗  .upRight   → ㅣ
+    //     ↙  .downLeft  → ㅡ
+    //
+    // Channel B — 15 fixed vowels (the rest): tiny gray hint always visible
+    // on 15 consonant slots, ranked by Euclidean distance from grid center
+    // (1.5, 3.0). The 4 furthest consonant slots (ㅎ ㅃ ㅆ ㅋ) get no hint;
+    // side symbols and backspace get no hint either.
+    //
+    // On finger release:
+    //  - released on source slot (no movement) → inputConsonant only
+    //    (composer routes; preserves b4d258e CV→batchim behavior)
+    //  - released on a directional adjacent cell → C + directional vowel
+    //  - released on a fixed-hint cell           → C + fixed vowel
+    //  - released elsewhere                      → cancel
+
+    /// Direction → vowel mapping for the 6 directional adjacent cells.
+    /// Derived from VowelPattern.swift single-stroke entries.
+    static let directionalVowelMap: [GestureDirection: Jungseong] = [
+        .right:     .ㅏ,
+        .left:      .ㅓ,
+        .up:        .ㅗ,
+        .down:      .ㅜ,
+        .upRight:   .ㅣ,
+        .downLeft:  .ㅡ,
     ]
 
-    /// Static slot -> vowel map. Keyed by row * 7 + column. 21 entries.
-    /// Source: vowelsByFrequency rank N -> consonant-distance-rank N, plus
-    /// ㅟ -> (0,0) and ㅞ -> (1,0) (the ~ and ^ symbol slots).
-    static let vowelForSlotMap: [Int: Jungseong] = [
-        // rank 0  ㅏ -> (1,3) ㄷ
-        1 * 7 + 3: .ㅏ,
-        // rank 1  ㅣ -> (2,3) ㅇ
-        2 * 7 + 3: .ㅣ,
-        // rank 2  ㅓ -> (1,2) ㅈ
-        1 * 7 + 2: .ㅓ,
-        // rank 3  ㅗ -> (1,4) ㄱ
-        1 * 7 + 4: .ㅗ,
-        // rank 4  ㅡ -> (2,2) ㄴ
-        2 * 7 + 2: .ㅡ,
-        // rank 5  ㅜ -> (2,4) ㄹ
-        2 * 7 + 4: .ㅜ,
-        // rank 6  ㅔ -> (0,3) ㄸ
-        0 * 7 + 3: .ㅔ,
-        // rank 7  ㅐ -> (3,3) ㅊ
-        3 * 7 + 3: .ㅐ,
-        // rank 8  ㅑ -> (0,2) ㅉ
-        0 * 7 + 2: .ㅑ,
-        // rank 9  ㅕ -> (0,4) ㄲ
-        0 * 7 + 4: .ㅕ,
-        // rank 10 ㅛ -> (3,2) ㅌ
-        3 * 7 + 2: .ㅛ,
-        // rank 11 ㅠ -> (3,4) ㅍ
-        3 * 7 + 4: .ㅠ,
-        // rank 12 ㅢ -> (1,1) ㅂ
-        1 * 7 + 1: .ㅢ,
-        // rank 13 ㅘ -> (1,5) ㅅ
-        1 * 7 + 5: .ㅘ,
-        // rank 14 ㅝ -> (2,1) ㅁ
-        2 * 7 + 1: .ㅝ,
-        // rank 15 ㅒ -> (2,5) ㅎ
-        2 * 7 + 5: .ㅒ,
-        // rank 16 ㅖ -> (0,1) ㅃ
-        0 * 7 + 1: .ㅖ,
-        // rank 17 ㅙ -> (0,5) ㅆ
-        0 * 7 + 5: .ㅙ,
-        // rank 18 ㅚ -> (3,1) ㅋ
-        3 * 7 + 1: .ㅚ,
-        // ㅟ -> (0,0) ~
-        0 * 7 + 0: .ㅟ,
-        // ㅞ -> (1,0) ^
-        1 * 7 + 0: .ㅞ,
-    ]
-
-    /// Looks up the static vowel associated with a grid slot. Returns nil
-    /// for slots without a vowel mapping (e.g. ⌫, ., ?, ;, *).
-    static func vowelFor(row: Int, column: Int) -> Jungseong? {
-        return vowelForSlotMap[row * 7 + column]
+    /// Grid offset (Δrow, Δcol) for each gesture direction. Origin (0,0)
+    /// is the touched consonant; positive row is down, positive col is right.
+    static func gridOffset(for direction: GestureDirection) -> (dRow: Int, dCol: Int) {
+        switch direction {
+        case .right:     return (0, 1)
+        case .left:      return (0, -1)
+        case .up:        return (-1, 0)
+        case .down:      return (1, 0)
+        case .upRight:   return (-1, 1)
+        case .upLeft:    return (-1, -1)
+        case .downRight: return (1, 1)
+        case .downLeft:  return (1, -1)
+        }
     }
+
+    /// Returns the directional adjacent cells (after edge/reserved clipping)
+    /// for a consonant at (row, column). A cell is "reserved" (clipped) if
+    /// it is off-grid, or contains a side symbol (~ ^ ; * ! ? .) or
+    /// backspace. Cells occupied by OTHER consonants are still valid — the
+    /// overlay paints the directional vowel on top of that consonant cell.
+    static func directionalVowels(around row: Int, column: Int) -> [(row: Int, column: Int, vowel: Jungseong, direction: GestureDirection)] {
+        var result: [(row: Int, column: Int, vowel: Jungseong, direction: GestureDirection)] = []
+        for (dir, vowel) in directionalVowelMap {
+            let off = gridOffset(for: dir)
+            let r = row + off.dRow
+            let c = column + off.dCol
+            // Clip off-grid.
+            guard r >= 0, r < gridRows else { continue }
+            let cols = columnCount(for: r, isSymbolMode: false)
+            guard c >= 0, c < cols else { continue }
+            // Clip reserved (symbol/backspace) cells; only consonant cells
+            // can host a directional vowel overlay.
+            guard let content = keyContent(at: r, column: c, isSymbolMode: false) else { continue }
+            switch content {
+            case .consonant:
+                result.append((r, c, vowel, dir))
+            case .symbol, .backspace, .vowel, .hidden:
+                continue
+            }
+        }
+        return result
+    }
+
+    /// 15 fixed-vowel hints (frequency-ranked, dropping the 6 basic vowels
+    /// covered by Channel A). Placed at the 15 consonant slots closest to
+    /// the grid center.
+    static let fixedVowelsByFrequency: [Jungseong] = [
+        .ㅔ, .ㅐ, .ㅑ, .ㅕ, .ㅛ, .ㅠ, .ㅢ, .ㅘ, .ㅝ,
+        .ㅒ, .ㅖ, .ㅙ, .ㅚ, .ㅟ, .ㅞ
+    ]
+
+    /// Static slot → fixed vowel hint map. Keyed by row * 7 + column.
+    /// 15 entries — the remaining 4 consonant slots (ㅎ ㅃ ㅆ ㅋ) and all
+    /// symbols/backspace have no fixed hint.
+    static let fixedVowelHintMap: [Int: Jungseong] = [
+        // Rank 0  ㅔ → (1,3) ㄷ
+        1 * 7 + 3: .ㅔ,
+        // Rank 1  ㅐ → (2,3) ㅇ
+        2 * 7 + 3: .ㅐ,
+        // Rank 2  ㅑ → (1,2) ㅈ
+        1 * 7 + 2: .ㅑ,
+        // Rank 3  ㅕ → (1,4) ㄱ
+        1 * 7 + 4: .ㅕ,
+        // Rank 4  ㅛ → (2,2) ㄴ
+        2 * 7 + 2: .ㅛ,
+        // Rank 5  ㅠ → (2,4) ㄹ
+        2 * 7 + 4: .ㅠ,
+        // Rank 6  ㅢ → (0,3) ㄸ
+        0 * 7 + 3: .ㅢ,
+        // Rank 7  ㅘ → (3,3) ㅊ
+        3 * 7 + 3: .ㅘ,
+        // Rank 8  ㅝ → (0,2) ㅉ
+        0 * 7 + 2: .ㅝ,
+        // Rank 9  ㅒ → (0,4) ㄲ
+        0 * 7 + 4: .ㅒ,
+        // Rank 10 ㅖ → (3,2) ㅌ
+        3 * 7 + 2: .ㅖ,
+        // Rank 11 ㅙ → (3,4) ㅍ
+        3 * 7 + 4: .ㅙ,
+        // Rank 12 ㅚ → (1,1) ㅂ
+        1 * 7 + 1: .ㅚ,
+        // Rank 13 ㅟ → (1,5) ㅅ
+        1 * 7 + 5: .ㅟ,
+        // Rank 14 ㅞ → (2,1) ㅁ
+        2 * 7 + 1: .ㅞ,
+    ]
+
+    /// Looks up the fixed vowel hint associated with a grid slot. Returns
+    /// nil for slots without a fixed-hint mapping (the 4 far-corner
+    /// consonants and all symbol/backspace cells).
+    static func fixedVowelHint(row: Int, column: Int) -> Jungseong? {
+        return fixedVowelHintMap[row * 7 + column]
+    }
+
 
     // Long press number mapping for Korean mode
     // Only basic consonants (row 1-2) have number mappings

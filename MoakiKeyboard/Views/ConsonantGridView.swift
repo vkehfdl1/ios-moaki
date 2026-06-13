@@ -37,6 +37,26 @@ struct KeyGridView: View {
         return false
     }
 
+    /// Origin (row, column) of the active SELECTING popup, or nil if not selecting.
+    private var selectingOrigin: (row: Int, column: Int)? {
+        if case .selecting(let origin, _, _, _) = popupPhase {
+            return origin
+        }
+        return nil
+    }
+
+    /// Directional adjacent cells (post-clip) for the current SELECTING
+    /// source. Empty when not selecting.
+    private var directionalCells: [(row: Int, column: Int, vowel: Jungseong, direction: GestureDirection)] {
+        guard let o = selectingOrigin else { return [] }
+        return KeyboardMetrics.directionalVowels(around: o.row, column: o.column)
+    }
+
+    /// Look up the directional vowel for (row, column) when selecting.
+    private func directionalVowel(at row: Int, column: Int) -> Jungseong? {
+        return directionalCells.first(where: { $0.row == row && $0.column == column })?.vowel
+    }
+
     var body: some View {
         VStack(spacing: KeyboardMetrics.keySpacing) {
             ForEach(0..<KeyboardMetrics.gridRows, id: \.self) { row in
@@ -51,19 +71,28 @@ struct KeyGridView: View {
                             row: row,
                             centerKeyWidth: centerKeyWidth
                         )
-                        // Static vowel hint for this slot (popup-mode feature).
-                        // Suppressed in symbol mode.
-                        let vowelHint: Jungseong? = (!isSymbolMode && vowelHintsVisible)
-                            ? KeyboardMetrics.vowelFor(row: row, column: column)
+                        // Channel B — fixed-vowel hint (small gray) for the 15
+                        // closest-to-center consonant slots. Suppressed in
+                        // symbol mode.
+                        let fixedHint: Jungseong? = (!isSymbolMode && vowelHintsVisible)
+                            ? KeyboardMetrics.fixedVowelHint(row: row, column: column)
                             : nil
+                        // Channel A — directional overlay during SELECTING.
+                        // The 6 adjacent cells (after clipping) display the
+                        // basic vowel large/prominent on top of whatever was
+                        // there. The source cell is hidden (finger covers it).
+                        let isOrigin = (selectingOrigin?.row == row && selectingOrigin?.column == column)
+                        let dirVowel: Jungseong? = directionalVowel(at: row, column: column)
                         KeyView(
                             content: content,
                             keySize: CGSize(width: width, height: keyHeight),
                             isPressed: isActive,
                             previewVowel: isActive ? previewVowel : nil,
-                            vowelHint: vowelHint,
+                            vowelHint: fixedHint,
                             isInSelecting: isInSelecting,
                             reservesHintSpace: !isSymbolMode && vowelHintsVisible,
+                            directionalOverlay: dirVowel,
+                            hideContent: isOrigin,
                             hintOptions: isActive ? hintOptions : [],
                             hintAnchor: isActive ? hintAnchor : nil,
                             longPressNumber: longPressNumber,
@@ -88,7 +117,7 @@ struct KeyGridView: View {
                                 onGestureEnd(row, column)
                             }
                         )
-                        .zIndex(isActive ? 1 : 0)
+                        .zIndex(isActive ? 2 : (dirVowel != nil ? 1 : 0))
                     }
                 }
                 .zIndex(activeKey?.row == row ? 1 : 0)

@@ -5,17 +5,25 @@ struct KeyView: View {
     let keySize: CGSize
     let isPressed: Bool
     let previewVowel: Jungseong?
-    /// Static vowel hint shown above the consonant glyph (vowel-popup mode).
-    /// nil means no hint (e.g. side symbol cells with no mapping).
+    /// Channel B — small fixed vowel hint shown above the consonant glyph
+    /// (popup mode). nil means no hint (e.g. side symbol cells with no
+    /// mapping, or the 4 tail consonants ㅎㅃㅆㅋ).
     var vowelHint: Jungseong? = nil
     /// True when the user is mid-gesture in SELECTING phase (anywhere on the
-    /// keyboard). Brightens this key's vowel hint so the user knows vowels
-    /// are now "live".
+    /// keyboard). Brightens this key's fixed vowel hint so the user knows
+    /// vowels are now "live".
     var isInSelecting: Bool = false
     /// True when popup mode is enabled at all - used to reserve a uniform
     /// hint-row height across consonant cells so glyphs line up even when a
     /// particular cell has no hint mapping.
     var reservesHintSpace: Bool = false
+    /// Channel A — directional vowel that should be rendered as a large
+    /// prominent overlay on top of this cell during SELECTING. nil means
+    /// this cell is not one of the 6 directional adjacent cells.
+    var directionalOverlay: Jungseong? = nil
+    /// True when this cell is the source consonant slot of the active
+    /// SELECTING popup. The key label is suppressed (finger covers it).
+    var hideContent: Bool = false
     var hintOptions: [VowelOption] = []
     var hintAnchor: CGPoint? = nil
     let longPressNumber: String?
@@ -47,8 +55,11 @@ struct KeyView: View {
                 .fill(backgroundColor)
                 .shadow(color: .black.opacity(0.2), radius: isPressed ? 0 : 1, y: isPressed ? 0 : 1)
 
-            // Key label
-            keyLabel
+            // Key label — suppressed when this cell is the SELECTING source
+            // (finger covers it; spec says "hidden visual").
+            if !hideContent {
+                keyLabel
+            }
         }
         .frame(width: keySize.width, height: keySize.height)
         .background(
@@ -63,6 +74,7 @@ struct KeyView: View {
             }
         )
         .overlay(vowelHintsOverlay)
+        .overlay(directionalOverlayView)
         .overlay(numberPopupOverlay, alignment: .top)
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -179,6 +191,26 @@ struct KeyView: View {
                         .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
                 )
                 .offset(y: -keySize.height * 0.8)
+        }
+    }
+
+    // MARK: - Channel A — directional vowel overlay (SELECTING phase)
+    /// Renders a large, prominent vowel button on top of this cell when it
+    /// is one of the 6 directional adjacent cells of the active SELECTING
+    /// source. Color matches the keyboard's accent (teal). Suppresses any
+    /// existing key glyph beneath visually.
+    @ViewBuilder
+    private var directionalOverlayView: some View {
+        if let v = directionalOverlay {
+            RoundedRectangle(cornerRadius: KeyboardMetrics.keyCornerRadius)
+                .fill(Color(red: 0.282, green: 0.651, blue: 0.635))
+                .overlay(
+                    Text(String(v.compatibilityCharacter))
+                        .font(.system(size: keySize.height * 0.5, weight: .bold))
+                        .foregroundColor(.white)
+                )
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+                .allowsHitTesting(false)
         }
     }
 
