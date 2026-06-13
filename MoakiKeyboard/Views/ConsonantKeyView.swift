@@ -18,6 +18,16 @@ struct KeyView: View {
     @State private var isHighlighted = false
     @State private var showNumberPopup = false
     @State private var longPressTimer: Timer?
+    /// This key's origin in the named grid coordinate space, captured each
+    /// frame so we can translate local DragGesture points → grid coords.
+    @State private var keyOriginInGrid: CGPoint = .zero
+
+    /// Translate a point in this key's local coordinate space to the named
+    /// grid coordinate space using the cached key origin.
+    private func toGridCoords(_ local: CGPoint) -> CGPoint {
+        CGPoint(x: local.x + keyOriginInGrid.x,
+                y: local.y + keyOriginInGrid.y)
+    }
 
     var body: some View {
         ZStack {
@@ -30,6 +40,17 @@ struct KeyView: View {
             keyLabel
         }
         .frame(width: keySize.width, height: keySize.height)
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        keyOriginInGrid = proxy.frame(in: .named(KeyGridView.gridCoordinateSpace)).origin
+                    }
+                    .onChange(of: proxy.frame(in: .named(KeyGridView.gridCoordinateSpace))) { _, new in
+                        keyOriginInGrid = new.origin
+                    }
+            }
+        )
         .overlay(vowelHintsOverlay)
         .overlay(numberPopupOverlay, alignment: .top)
         .gesture(
@@ -40,7 +61,7 @@ struct KeyView: View {
                         if isBackspaceKey {
                             onBackspacePressStart?()
                         } else {
-                            onGestureStart(value.startLocation)
+                            onGestureStart(toGridCoords(value.startLocation))
                             startLongPressTimer()
                         }
                     }
@@ -53,7 +74,7 @@ struct KeyView: View {
                         cancelLongPressTimer()
                     }
 
-                    onGestureMove(value.location)
+                    onGestureMove(toGridCoords(value.location))
                 }
                 .onEnded { _ in
                     isHighlighted = false
@@ -102,6 +123,13 @@ struct KeyView: View {
             Image(systemName: "delete.left")
                 .font(.system(size: keySize.height * 0.35))
                 .foregroundColor(textColor)
+        case .vowel(let v):
+            Text(String(v.compatibilityCharacter))
+                .font(.system(size: keySize.height * 0.4, weight: .medium))
+                .foregroundColor(textColor)
+        case .hidden:
+            // Invisible slot (used where the finger is currently resting).
+            EmptyView()
         }
     }
 
@@ -134,7 +162,11 @@ struct KeyView: View {
             // until a stroke moves away), snapped cell-to-cell so it never drifts. Each hint
             // then sits one cell over in its next-stroke direction — exactly where the finger
             // must move to select that vowel — so position matches the gesture logic.
-            let raw = hintAnchor ?? center
+            // hintAnchor is in grid coords (see toGridCoords). Translate back
+            // to local before the cell-snap math expects local distances.
+            let anchorLocal = hintAnchor.map { CGPoint(x: $0.x - keyOriginInGrid.x,
+                                                       y: $0.y - keyOriginInGrid.y) }
+            let raw = anchorLocal ?? center
             let col = ((raw.x - center.x) / cellW).rounded()
             let row = ((raw.y - center.y) / cellH).rounded()
             let anchor = CGPoint(x: center.x + col * cellW, y: center.y + row * cellH)
@@ -166,10 +198,18 @@ struct KeyView: View {
             return isPressed || isHighlighted ? Color(.systemGray4) : Color(.systemGray6)
         case .consonant:
             return isPressed || isHighlighted ? Color(.systemGray5) : Color(.systemBackground)
+        case .vowel:
+            // Highlighted accent for the popup vowels so they read as "active".
+            return isPressed || isHighlighted
+                ? Color(red: 0.20, green: 0.55, blue: 0.55)
+                : Color(red: 0.282, green: 0.651, blue: 0.635)
+        case .hidden:
+            return Color.clear
         }
     }
 
     private var textColor: Color {
+        if case .vowel = content { return .white }
         return .primary
     }
 

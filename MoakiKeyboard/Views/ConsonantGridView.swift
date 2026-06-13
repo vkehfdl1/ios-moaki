@@ -5,6 +5,9 @@ struct KeyGridView: View {
     let keyHeight: CGFloat
     let totalWidth: CGFloat
     let isSymbolMode: Bool
+    /// Vowel-popup phase (see PopupPhase). When non-.consonant, the grid
+    /// renders the vowel popup layout instead of koreanLayout.
+    var popupPhase: PopupPhase = .consonant
     let activeKey: (row: Int, column: Int)?
     let previewVowel: Jungseong?
     var hintOptions: [VowelOption] = []
@@ -18,29 +21,50 @@ struct KeyGridView: View {
     let onGestureMove: (CGPoint) -> Void
     let onGestureEnd: (Int, Int) -> Void
 
+    /// True when the grid is showing the vowel popup layout.
+    private var isVowelPopup: Bool { popupPhase != .consonant }
+
+    /// (row, column) of the originating consonant when in popup mode.
+    /// Its slot is rendered as .hidden so the user's finger isn't covered.
+    private var popupOrigin: (row: Int, column: Int)? {
+        switch popupPhase {
+        case .consonant: return nil
+        case .vowel(let o, _): return o
+        case .batchim(let o, _, _): return o
+        }
+    }
+
     var body: some View {
         VStack(spacing: KeyboardMetrics.keySpacing) {
             ForEach(0..<KeyboardMetrics.gridRows, id: \.self) { row in
                 HStack(spacing: KeyboardMetrics.keySpacing) {
-                    let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode)
-
+                    let columnCount = KeyboardMetrics.columnCount(for: row, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup)
                     ForEach(0..<columnCount, id: \.self) { column in
-                        let content = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode)
+                        let rawContent = KeyboardMetrics.keyContent(at: row, column: column, isSymbolMode: isSymbolMode, isVowelPopup: isVowelPopup)
+                        // Hide the consonant cell that originated the popup so the
+                        // finger isn't covered by the morphed-away key.
+                        let content: KeyContent = {
+                            if let origin = popupOrigin, origin.row == row && origin.column == column {
+                                return .hidden
+                            }
+                            return rawContent ?? .symbol("")
+                        }()
                         let isActive = activeKey?.row == row && activeKey?.column == column
-                        let longPressNumber = isSymbolMode ? nil : KeyboardMetrics.longPressNumber(at: row, column: column)
+                        let longPressNumber = (isSymbolMode || isVowelPopup) ? nil : KeyboardMetrics.longPressNumber(at: row, column: column)
                         let width = KeyboardMetrics.keyWidth(
                             for: column,
                             row: row,
-                            centerKeyWidth: centerKeyWidth
+                            centerKeyWidth: centerKeyWidth,
+                            isVowelPopup: isVowelPopup
                         )
 
                         KeyView(
-                            content: content ?? .symbol(""),
+                            content: content,
                             keySize: CGSize(width: width, height: keyHeight),
                             isPressed: isActive,
                             previewVowel: isActive ? previewVowel : nil,
-                            hintOptions: isActive ? hintOptions : [],
-                            hintAnchor: isActive ? hintAnchor : nil,
+                            hintOptions: (isActive && !isVowelPopup) ? hintOptions : [],
+                            hintAnchor: (isActive && !isVowelPopup) ? hintAnchor : nil,
                             longPressNumber: longPressNumber,
                             onLongPress: { number in
                                 onLongPressNumber(number)
@@ -69,7 +93,13 @@ struct KeyGridView: View {
                 .zIndex(activeKey?.row == row ? 1 : 0)
             }
         }
+        // Named coordinate space lets the per-key DragGesture report finger
+        // positions relative to the whole grid, so the ViewModel can hit-test
+        // against any cell during popup-mode drags.
+        .coordinateSpace(name: KeyGridView.gridCoordinateSpace)
     }
+
+    static let gridCoordinateSpace = "moakiKeyboardGrid"
 }
 
 // Legacy alias for compatibility
